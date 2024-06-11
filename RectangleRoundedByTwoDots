@@ -1,0 +1,213 @@
+// xyz_register_name = 'path'
+unit_name = 'simple_rect'
+normal_quality = 2;
+edit_quality = 2
+
+materials = {
+    line_material: {
+        calcDefMaterial(self, pack) {
+            let materials = pack.materials
+            let material = materials[0];
+            return self.confi('line_material')
+        },
+        calcQty(self, pack) {
+            return 1
+        }
+    },
+}
+
+variables = {
+
+    corners(self) {
+        let pts = self.confi('pts')
+        let st = pts[0]
+        let fn = pts[1]
+        let corners = []
+        let r = self.confi('radius')
+        corners = [
+            matan.v2([st[0], st[1]]).setR(r[0]),
+            matan.v2([fn[0], st[1]]).setR(r[1]),
+            matan.v2([fn[0], fn[1]]).setR(r[2]),
+            matan.v2([st[0], fn[1]]).setR(r[3])
+        ]
+        // console.log(r, "RADIUS")
+        return corners
+    },
+
+    frame_pts(self) {
+        let smart_pts = matan.section().initBySmartPts(self.vari('corners'), [0, 0], self.getViewQuality())
+
+        // console.log(smart_pts, self.vari('corners'), 'SECTIONS AND CORNERS')
+        return smart_pts.pts
+    }
+}
+
+
+onCreateClick(event) {
+    if (event.click === 2) {
+        return this.finishCreate();
+    }
+}
+
+onCreateMove(event) {
+    let cursor_pt = event.pt;
+    let cl = event.click;
+    let pts = this.config.pts
+    if (cl === 0) {
+        pts[0] = [cursor_pt[0], cursor_pt[1]];
+        pts[1] = [cursor_pt[0] + 300, cursor_pt[1] + 300];
+    }
+
+    if (cl === 1) {
+        pts[1] = [cursor_pt[0], cursor_pt[1]];
+    }
+    this.config.update('pts')
+    this.applyChanges()
+}
+
+updateRegisterFigures() {
+    let pts = this.vari('frame_pts')
+    let data = {
+        axis: {
+            pts: pts,
+            sgts: this.getSgtsArrayFromPtsArray(pts)
+        }
+    }
+    this.setFiguresToSetList(data);
+}
+
+drawUnits() {
+    return [
+        {
+            f_c: require('@PoligonWebGL/class/127@'),
+            variables: {
+                quantity(self) {
+                    return 1
+                },
+            },
+            variables_number: {
+                _config(self, number) {
+                    self.confi('pts');
+                    let poly = self.vari('frame_pts');
+                    let fill_color = self.confi('fill_color') === '#FFFFFF' ? false : self.confi('fill_color')
+                    let frame_color = self.confi('frame_color') === '#FFFFFF' ? false : self.confi('frame_color')
+
+                    let data = {
+                        pts: poly,
+                        stroke_color: frame_color,
+                        fill_color: fill_color,
+                        stroke_width: +self.mati('line_material').m.getParam('stroke_width'),
+                    }
+                    return data;
+                },
+            }
+        },
+    ]
+}
+
+calcEditPoints() {
+    let c = this.config
+    let corners = this.vari('corners')
+    let r = this.confi('radius')
+    let edit_pts = [
+        matan.sgt2().initByPts(corners[0], corners[2]).getPtOnLineSgtByDistFromStPt(r[0] * 0.5).getArray(),
+        matan.sgt2().initByPts(corners[1], corners[3]).getPtOnLineSgtByDistFromStPt(r[1] * 0.5).getArray(),
+        matan.sgt2().initByPts(corners[2], corners[0]).getPtOnLineSgtByDistFromStPt(r[2] * 0.5).getArray(),
+        matan.sgt2().initByPts(corners[3], corners[1]).getPtOnLineSgtByDistFromStPt(r[3] * 0.5).getArray(),
+
+        matan.sgt2().initByPts(corners[0], corners[1]).calcMidPt().getArray(),
+        matan.sgt2().initByPts(corners[1], corners[2]).calcMidPt().getArray(),
+        matan.sgt2().initByPts(corners[2], corners[3]).calcMidPt().getArray(),
+        matan.sgt2().initByPts(corners[3], corners[0]).calcMidPt().getArray(),
+
+
+        matan.sgt2().initByPts(corners[0], corners[2]).calcMidPt().getArray(),
+    ]
+
+
+    return edit_pts
+}
+
+dragEditPointFigure(ev_data, pt_number) {
+    let cursor_pt = ev_data.pt;
+    let pts = this.config.pts
+    let c = this.config
+    let corners = this.vari('corners')
+
+    let poly = matan.poly2({ pts: corners, holes: [] }, true)
+    let sign = Math.sign(poly.calcAreaSign())
+    let r = c.radius
+
+    let left_r_sum = +r[0] + +r[3]
+    let right_r_sum = +r[1] + +r[2]
+    let h_r_sum = left_r_sum > right_r_sum ? left_r_sum : right_r_sum
+
+    let top_r_sum = +r[0] + +r[1]
+    let bot_r_sum = +r[2] + +r[3]
+    let w_r_sum = top_r_sum > bot_r_sum ? top_r_sum : bot_r_sum
+
+    if (pt_number < 4) {
+        let prev_sgt = matan.sgt2().initByPts(corners[(pt_number + 3) % 4], corners[pt_number])
+        let next_sgt = matan.sgt2().initByPts(corners[pt_number], corners[(pt_number + 1) % 4])
+        let first_max_r = prev_sgt.getLength() - +r[(pt_number + 3) % 4]
+        let second_max_r = next_sgt.getLength() - +r[(pt_number + 1) % 4]
+        let current_max_r = first_max_r < second_max_r ? first_max_r : second_max_r
+
+        let distance = matan.v2(cursor_pt).calcDistToPt(corners[pt_number]) * 2.25
+
+        let side_test_1 = Math.sign(prev_sgt.getSideByPt(cursor_pt))
+        let side_test_2 = Math.sign(next_sgt.getSideByPt(cursor_pt))
+        let pt_outside = sign !== side_test_1 || sign !== side_test_2
+        // console.log({sign,pt_outside, side_test_1, side_test_2},'PTOUTSOIDE')
+        if (pt_outside === true) {
+            r[pt_number] = 0
+        }
+        else if (distance < current_max_r) {
+            r[pt_number] = distance
+        }
+    }
+
+
+    else if (pt_number === 4) {
+        let bot_sgt = matan.sgt2().initByPts(corners[3], corners[2])
+        let dist_to_bot = matan.v2(cursor_pt).calcDistToSgt(bot_sgt)
+        if (dist_to_bot > h_r_sum + 1) {
+            pts[0][1] = cursor_pt[1]
+        }
+
+    }
+    else if (pt_number === 5) {
+        let left_sgt = matan.sgt2().initByPts(corners[3], corners[0])
+        let dist_to_left = matan.v2(cursor_pt).calcDistToSgt(left_sgt)
+        if (dist_to_left > w_r_sum + 1) {
+            pts[1][0] = cursor_pt[0]
+        }
+
+    }
+    else if (pt_number === 6) {
+        let top_sgt = matan.sgt2().initByPts(corners[0], corners[1])
+        let dist_to_top = matan.v2(cursor_pt).calcDistToSgt(top_sgt)
+        if (dist_to_top > h_r_sum + 1) {
+            pts[1][1] = cursor_pt[1]
+        }
+    }
+    else if (pt_number === 7) {
+        let right_sgt = matan.sgt2().initByPts(corners[1], corners[2])
+        let dist_to_right = matan.v2(cursor_pt).calcDistToSgt(right_sgt)
+        if (dist_to_right > h_r_sum + 1) {
+            pts[0][0] = cursor_pt[0]
+        }
+    }
+    else if (pt_number === 8) {
+        let pt0 = matan.sgt2().initByPts(pts[0], pts[1]).calcMidPt()
+        let dx = cursor_pt[0] - pt0[0];
+        let dy = cursor_pt[1] - pt0[1];
+        for (let i = 0; i < pts.length; i++) {
+            pts[i] = [pts[i][0] + dx, pts[i][1] + dy];
+        }
+    }
+
+
+    c.update('pts')
+    this.applyChanges()
+}
