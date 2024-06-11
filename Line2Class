@@ -1,0 +1,144 @@
+/**
+ * @param  {MathClass} matan
+ */
+(matan) => {
+    return q_mc('#269#', 'Line2Class', function () {
+
+        let k = 0;
+        let b = 1;
+        let x = 0;
+        let y = 1;
+        class Line2Class extends Float32Array {
+            constructor() {
+                super(2)
+            }
+
+            initByPts(pt1, pt2) {
+                this.calcKB(pt1, pt2)
+                return this;
+            }
+
+            initByKB(lk, lb) {
+                this[k] = lk;
+                this[b] = lb;
+                return this;
+            }
+
+            initBySgt(sgt) {
+                this[k] = sgt[4];
+                this[b] = sgt[5];
+                return this;
+            }
+
+
+
+
+            //Intersection !!!!!!!!!!!!!
+            getIntersectionPtByLine(l) {
+                let pt = matan.v2();
+                if ((this[k] === 0 && l[k] === 0) || (this[k] === Infinity && l[k] === Infinity)) {
+                    return false;
+                } else if (l[k] === Infinity) {
+                    pt.setXY(l[b], this[k] * l[b] + this[b]);
+                } else if (this[k] === Infinity) {
+                    pt.setXY(this[b], l[k] * this[b] + l[b]);
+                } else if (Math.abs(this[k] - l[k]) < 0.00001 && Math.abs(this[b] - l[b]) > 0.01) {
+                    return false;
+                } else {
+                    pt.setX((l[b] - this[b]) / (this[k] - l[k]));
+                    pt.setY(this[k] * pt[0] + this[b]);
+                }
+                return pt;
+            }
+
+            //Parallel !!!!!!!!!!!!!
+
+
+
+            translateByV2(v) {
+                this[b] += v[y];
+                return this;
+
+            }
+            translateOppositeByV2(v) {
+                this[b] += v[y];
+                return this;
+
+            }
+
+            translateByPt(pt) {
+                this[b] = this.calcParallelByPt(pt);
+                return this;
+
+            }
+
+            getParallelLineByPt(pt) {
+                let new_b = this.calcParallelByPt(pt);
+                return matan.ln2().initByKB(this[k], new_b);
+            }
+
+            calcParallelByPt(pt) {
+                let b_new;
+                if (this[k] == Infinity) {
+                    b_new = pt[0];
+                } else {
+                    b_new = pt[1] - this[k] * pt[0];
+                }
+                return b_new;
+            }
+
+
+
+            //Perpendicular !!!!!!!!!!!!!
+            rotate90ByPt(pt) {
+                let kb = this.calcPerpendicularByPt(pt);
+                this[k] = kb[k];
+                this[b] = kb[b];
+                return this;
+            }
+
+            getPerpendicularLineByPt(pt) {
+                let kb = this.calcPerpendicularByPt(pt);
+                return matan.ln2().initByKB(kb[k], kb[b]);
+            }
+
+            calcPerpendicularByPt(pt) {
+                var k_new, b_new;
+                if (this[k] === 0) {
+                    k_new = Infinity;
+                    b_new = pt[0];
+                } else if (this[k] === Infinity) {
+                    k_new = 0;
+                    b_new = pt[1];
+                } else {
+                    k_new = -1 / this[k];
+                    b_new = pt[1] - k_new * pt[0];
+                }
+                return [k_new, b_new];
+            }
+
+            calcKB(pt1, pt2) {
+                this[k] = Infinity;
+                this[b] = pt1[0];
+                let d = pt1[0] - pt2[0];
+                if (Math.abs(d) > 0.001) {
+                    this[k] = (pt1[1] - pt2[1]) / d;
+                    this[b] = pt1[1] - this[k] * pt1[0];
+                    if (Math.abs(this[k]) < 0.00001) {
+                        this[k] = 0;
+                    }
+                }
+                return this;
+            }
+
+            getAngleByLine(l) {
+                let tan = (l[k] - this[k]) / (1 + l[k] * this[k])
+                return Math.atan(tan);
+            }
+
+
+        }
+
+        return Line2Class;
+    })
+}
