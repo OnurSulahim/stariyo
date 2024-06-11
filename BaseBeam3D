@@ -1,0 +1,373 @@
+xyz_register_fokus_system = 'simple_house'
+xyz_register_name = 'beam'
+
+unit_name = 'steel_strip'
+
+/* 
+            ГОСТ 103-76
+Полоса стальная горячекатаная. Сортамент 
+*/
+
+config = {
+    pts: [[0, 0, 0], [300, 0, 0]],
+    width: 200,   // b - ширина полосы (от 11 до 200 мм)
+    thick: 60,    // a - толщина полосы (от 4 до 60 мм)
+    height: 3000,
+    bottom: 0,
+    hatch: [103010, 103010, 103010, 103010, 103010, 103010],
+    hatch_name: 'metal',
+
+    smooth: '',
+    r_inner: '',
+    r_shelf: '',
+    depth: '',
+    solid: '',
+
+}
+
+isTypeGlobal(){
+    return true
+}
+
+onCreateStart(event){
+    this.setConfig({})
+}
+
+variables = {
+    crosssection_pts(self) {
+        let config_pts = self.confi('pts');
+        let width = self.confi('width');
+        let thick = self.confi('thick');
+
+        let pts = [
+            matan.v2([config_pts[0][0], config_pts[0][2]]),
+            matan.v2([config_pts[1][0], config_pts[1][2]])
+        ]
+
+        let corners = [];
+        corners.push(pts[0].clone().translate([-0.5 * width, 0.5 * thick]));
+        corners.push(pts[0].clone().translate([-0.5 * width, -0.5 * thick]));
+        corners.push(pts[0].clone().translate([0.5 * width, -0.5 * thick]));
+        corners.push(pts[0].clone().translate([0.5 * width, 0.5 * thick]));
+
+        /// поворот всех точек
+        let angle = matan.sgt2().initByPts(pts[0], pts[1]).getAbsoluteAngleRad();
+        let len = corners.length;
+        for (let k = 0; k < len; k++) {
+            let pt = corners[k];
+            pt.rotateZByRad(-angle + Math.PI, pts[0]);
+        }
+        return corners;
+    }
+}
+
+onCreateClick(event){
+    if (event.click === 2) {
+        return this.finishCreate();
+    }
+}
+
+onCreateMove(event){
+    let pt = event.pt;
+    let cl = event.click;
+    let sk_c = event.sketch.sketch_item.config;
+    if (cl === 0) {
+        this.calcCreatePtsFirst(pt, sk_c)
+
+    } else {
+        this.config.pts[1] = [pt[0], +sk_c.model_z, pt[1]];
+
+    }
+    this.config.update('pts')
+    this.applyChanges();
+}
+
+calcCreatePtsFirst(pt, sk_c){
+    this.config.pts[0] = [pt[0], +sk_c.model_z, pt[1]];
+    this.config.pts[1] = [pt[0] - 200, +sk_c.model_z, pt[1]];
+}
+
+drawPlan(){
+    return [
+        {
+            f_c: require('@class/149@'),
+
+            variables: {
+                quantity(self) {
+                    return 1
+                }
+            },
+
+            variables_number: {
+                pts(self, number) {
+                    let corners = self.vari('crosssection_pts');
+                    let pts = [...corners, corners[0]];
+                    return pts
+                },
+            },
+
+            getConfig(self) {
+                return {
+                    stroke_width: 0.2,
+                    stroke_color: [1, 1, 250, 1],
+                }
+            }
+        },
+    ]
+}
+
+draw3D(){
+    return [
+        {
+            f_c: require('@class/173@'),
+            variables: {
+                block_3D_pts(self) {
+                    let height = +self.confi('height')
+                    let config_pts = self.confi('pts');
+                    let pts = [];
+
+                    let corners = self.vari('crosssection_pts');
+                    let l = corners.length
+                    for (let i = 0; i < l; i++) {
+                        pts[i] = [corners[i][0], 0, corners[i][1]];
+                        pts[i + l] = [corners[i][0], height, corners[i][1]];
+                    }
+                    return pts;
+                },
+                base_normals(self) {
+                    let corners = self.vari('crosssection_pts');
+                    // console.log({ corners }, "Prishlo secenie")
+                    let length = corners.length
+                    let sgt = []
+                    let vector2 = []
+                    let normals = [];
+                    for (let i = 0; i < length; i++) {
+                        sgt[i] = matan.sgt2().initByPts(corners[i], corners[(i + 1) % length]).rotateZByGrad(90, corners[i]);
+                        vector2[i] = matan.v2().setXYByTwoPts(sgt[i].getStPt(), sgt[i].getFnPt());
+                        normals[i] = matan.v3().setXYZ(vector2[i][0], 0, vector2[i][1]).getNormalizeV3();
+                    }
+                    normals[length] = matan.v3([0, 1, 0]);   /// top
+                    normals[length + 1] = matan.v3([0, -1, 0]);  /// bottom
+                    return normals
+                },
+
+                bazis_base(self) {
+                    let Matrix3Class = q_mc('#369#');
+                    let b_n = self.vari('base_normals');
+
+                    let baz_result = [];
+                    let sides = b_n.length - 2;
+                    for (let i = 0; i < sides; i++) {
+
+                        let mt_data = {
+                            elements: [...b_n[(i + 1) % sides], 0, 1, 0, ...b_n[i]]
+                        }
+
+                        let mt = new Matrix3Class(mt_data);
+                        mt = mt.invert();
+                        baz_result[i] = mt.elements;
+                    }
+                    baz_result[b_n.length - 2] = new Float32Array([1, 0, 0, 0, 0, 1, 0, 1, 0]);
+                    baz_result[b_n.length - 1] = new Float32Array([1, 0, 0, 0, 0, 1, 0, -1, 0]);
+
+                    return baz_result;
+                },
+
+                planes(self) {
+                    let b_n = self.vari('base_normals');
+                    let baz = self.vari('bazis_base');
+                    let hatch = self.confi('hatch');
+                    let wpts = self.vari('crosssection_pts');
+
+                    let corners = self.vari('block_3D_pts');
+
+                    let pts = self.confi('pts');
+                    let h = self.confi('height');
+                    let w = self.confi('width');
+                    let planes = self.unit.calcExtraPlanes(wpts, w, h, pts, b_n, baz, hatch, corners);
+                    return planes
+                },
+
+
+                quantity(self) {
+                    return self.vari('planes').length
+                },
+
+            },
+            variables_number: {
+                _config(self, number) {
+                    let planes = self.vari('planes');
+                    let plane = planes[number];
+                    let mte = plane.b;
+
+                    let conf = {
+                        position: plane.pts,
+                        normal: plane.n,
+                        vtx: [mte[0], mte[3], mte[6]],
+                        vty: [mte[1], mte[4], mte[7]],
+                        color: [145, 89, 145, 1.0],
+                        hatch: plane.t
+                    }
+                    return conf
+
+                }
+            }
+
+        },
+    ]
+}
+
+calcExtraPlanes(wpts, w, h, pts, b_n, baz, hatch, corners){
+    // console.log({ wpts, w, h, pts, b_n, baz, hatch, corners }, "Zashlo vnutr")
+    let bottom_y = pts[0][1] + +this.confi('bottom');
+
+    let planes = []
+    let len = wpts.length
+    for (let i = 0; i < len; i++) {
+        planes[i] = matan.pln4().initBy2DPtsAndAxisTranslate([wpts[i], wpts[(i + 1) % len]], [0, 2, 1], bottom_y, h).setNBT(b_n[i], baz[i], hatch[3])
+    }
+    let front = this.unit.calcExtraFrontPlanes(wpts, w, h, pts, b_n, baz, hatch, bottom_y, corners);
+    planes.push(...front);
+    // console.log({ planes }, "I sho tut ne tak_??")
+    return planes
+}
+
+calcExtraFrontPlanes(wpts, w, h, pts, b_n, baz, hatch, bottom_y, corners){
+    let planes = [];
+    planes.push(matan.pln4().initBy2DPtsAndAxis(wpts, [0, 2, 1], bottom_y).setNBT(b_n[b_n.length - 2], baz[b_n.length - 2], 1));  /// down
+    planes.push(matan.pln4().initBy2DPtsAndAxis(wpts, [0, 2, 1], bottom_y + h).setNBT(b_n[b_n.length - 1], baz[b_n.length - 1], 1));   /// up
+    return planes;
+}
+
+updateRegisterFigures(){
+    let pts = this.vari('crosssection_pts')
+    let sgts = q_mc('#216#', pts)
+
+    let data = {
+        axis: {
+            pts: pts,
+            sgts: sgts
+        },
+    }
+
+    this.setFiguresToSetList(data);
+}
+
+
+calcEditPoints(){
+    let pts = this.vari('crosssection_pts')
+    let centre = matan.v2([this.confi('pts')[0][0], this.confi('pts')[0][2]]);
+    let angle_pt = matan.v2([this.confi('pts')[1][0], this.confi('pts')[1][2]]);
+    return [
+        { pt: centre, type: 'simple' },
+        { pt: angle_pt, type: 'triangle' },
+    ]
+}
+
+
+dragEditPointFigure(ev_data, pt_number){
+    let centre = matan.v2([this.confi('pts')[0][0], this.confi('pts')[0][2]]);
+    let cursor_pt = ev_data.pt;
+    if (pt_number === 0) {
+        let dx = cursor_pt[0] - centre[0];
+        let dy = cursor_pt[1] - centre[1];
+        this.config.pts[0] = [this.config.pts[0][0] + dx, this.config.pts[0][1], this.config.pts[0][2] + dy];
+        this.config.pts[1] = [this.config.pts[1][0] + dx, this.config.pts[1][1], this.config.pts[1][2] + dy];
+    }
+    else if (pt_number === 1) {
+        this.config.pts[pt_number][0] = cursor_pt[0];
+        this.config.pts[pt_number][2] = cursor_pt[1];
+    }
+
+    this.config.update('pts')
+    this.applyChanges();
+}
+
+
+getComponentValue(name){
+    if (name === 'stroke_color') {
+        return this.config[name].toString(16);
+    }
+    return super.getComponentValue(name)
+}
+
+setComponentValue(name, value){
+
+    if (name === 'smooth') {
+        value = +value
+        console.log({ name, value }, "Component")
+    }
+
+    if (name === 'slab_hatch') {
+        let hatchs = {
+            slab_concrete: [100010, 100010, 100010, 100010, 100010, 100010],
+            slab_marble: [100110, 100110, 100110, 100110, 100110, 100110],
+            plywood_type_1: [27, 27, 27, 27, 27, 27],
+            slab_granite: [100210, 100210, 100210, 100210, 100210, 100210],
+            slab_stones: [100310, 100310, 100310, 100310, 100310, 100310],
+            slab_concrete_light: [100410, 100410, 100410, 100410, 100410, 100410],
+        }
+        let cur_hatch;
+        if (hatchs[value] !== undefined) {
+            cur_hatch = hatchs[value]
+        } else {
+            cur_hatch = [100010, 100010, 100010, 100010, 100010, 100010];
+        }
+        super.setComponentValue('hatch', cur_hatch);
+    }
+
+    if (name === 'wood_hatch') {
+        let hatchs = {
+            pine: [20, 20, 20, 20, 21, 21],
+            oak: [22, 22, 22, 22, 23, 23],
+            plywood_type_1: [27, 27, 27, 27, 27, 27],
+            wood_alder_black: [10011, 10011, 10011, 10011, 10012, 10012],
+            wood_scotch_pine: [10341, 10341, 10341, 10341, 10342, 10342],
+        }
+        let cur_hatch;
+        if (hatchs[value] !== undefined) {
+            cur_hatch = hatchs[value]
+        } else {
+            cur_hatch = [10341, 10341, 10341, 10341, 10342, 10342];
+        }
+        this._setComponentValue('hatch', cur_hatch);
+    }
+
+    if (name === 'wall_hatch') {
+        let hatchs = {
+            brick_1: [101010, 101010, 101010, 101010, 101010, 101010],
+            brick_2: [101020, 101020, 101020, 101020, 101020, 101020],
+            brick_3: [101030, 101030, 101030, 101030, 101030, 101030],
+            brick_4: [101040, 101040, 101040, 101040, 101040, 101040],
+            brick_5: [101050, 101050, 101050, 101050, 101050, 101050],
+            brick_6: [5, 100210, 100210, 100210, 100210, 100210],
+        }
+
+        let cur_hatch;
+        if (hatchs[value] !== undefined) {
+            cur_hatch = hatchs[value]
+        } else {
+            cur_hatch = [101010, 101010, 101010, 101010, 101010, 101010];
+        }
+        this._setComponentValue('hatch', cur_hatch);
+    }
+
+    if (name === 'metal') {
+        let hatchs = {
+            metal_1: [103010, 103010, 103010, 103010, 103010, 103010],
+            metal_2: [103020, 103020, 103020, 103020, 103020, 103020],
+            metal_3: [103030, 103030, 103030, 103030, 103030, 103030],
+            metal_4: [103040, 103040, 103040, 103040, 103040, 103040],
+        }
+
+        let cur_hatch;
+        if (hatchs[value] !== undefined) {
+            cur_hatch = hatchs[value]
+        } else {
+            cur_hatch = [103010, 103010, 103010, 103010, 103010, 103010];
+        }
+        this._setComponentValue('hatch', cur_hatch);
+    }
+
+    super.setComponentValue(name, value)
+}
