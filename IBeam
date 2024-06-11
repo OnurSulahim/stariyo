@@ -1,0 +1,128 @@
+xyz_register_fokus_system = 'simple_house'
+xyz_register_name = 'beam'
+
+unit_name = 'i_beam'
+
+/* 
+                ГОСТ 8239-89
+Двутавры стальные горячекатаные. Сортамент
+*/
+
+config = {
+    pts: [[0, 0, 0], [300, 0, 0], [0, 300, 0]],
+    // series: 0,     // 0-У, 1-П, 2-Э, 3-Л, 4-С // Серия: У - с уклоном внутренних граней полок, П - с параллельными гранями полок, Э - экономичные с параллельными гранями полок, Л - легкой серии с параллельными гранями полок, С - специальные
+    width: 600,    // h - высота швеллера
+    depth: 190,    // b - ширина полки
+    thick: 17.8,   // t - толщина 
+    solid: 12,      // s - толщина стенки
+    r_inner: 20,   // R - радиус внутреннего закругления
+    r_shelf: 8,    // r - радиус закругления полки
+    // x_0: 27.5,     // x_0 - расстояние от оси Y-Y (оси центра тяжести) до наружной грани стенки
+    smooth: 3,     /// from 0 to 4; 0 - right angle, 4 - curve
+    height: 3000,
+    bottom: 0,
+    hatch: [103020, 103020, 103020, 103020, 103020, 103020],
+    hatch_name: 'metal',
+}
+
+
+getVariables(){
+    let variables = super.getVariables()
+
+    variables.crosssection_pts = function (self) {
+        let config_pts = self.confi('pts');
+        // let series = Number(self.confi('series'));
+        let width = self.confi('width');
+        let depth = self.confi('depth');
+        let thick = self.confi('thick');
+        let solid = self.confi('solid');
+        let r_inner = self.confi('r_inner');
+        let r_shelf = self.confi('r_shelf');
+        // let x_0 = self.confi('x_0');
+        let smooth = Number(self.confi('smooth'));
+
+        let pts = [
+            matan.v2([config_pts[0][0], config_pts[0][2]]),
+            matan.v2([config_pts[1][0], config_pts[1][2]])
+        ];
+
+        let r_d_dt = pts[0].clone().translate([0.5 * depth, 0.5 * width]);  // Right Down Dot
+        let l_d_dt = pts[0].clone().translate([-0.5 * depth, 0.5 * width]); // Left Down Dot
+        let l_u_dt = pts[0].clone().translate([-0.5 * depth, -0.5 * width]); // Left Up Dot
+        let r_u_dt = pts[0].clone().translate([0.5 * depth, -0.5 * width]);  // Right Up Dot
+
+        // Left side
+        let c_l_d_sh = pts[0].clone().translate([-0.5 * depth + r_shelf, 0.5 * width]) // Centre of Left Down Shelf
+        let c_l_d_in = pts[0].clone().translate([-0.5 * solid - r_inner, 0.5 * width - r_inner - thick]) // Centre of Left Down Inner
+        let c_l_u_in = pts[0].clone().translate([-0.5 * solid - r_inner, -0.5 * width + r_inner + thick]) // Centre of Left Up Inner
+        let c_l_u_sh = pts[0].clone().translate([-0.5 * depth + r_shelf, -0.5 * width]) // Centre of Left Up Shelf
+        // Right side
+        let c_r_u_sh = pts[0].clone().translate([0.5 * depth - r_shelf, -0.5 * width]) // Centre of Right Up Shelf
+        let c_r_u_in = pts[0].clone().translate([0.5 * solid + r_inner, -0.5 * width + r_inner + thick]) // Centre of Right Up Inner
+        let c_r_d_in = pts[0].clone().translate([0.5 * solid + r_inner, 0.5 * width - r_inner - thick]) // Centre of Right Down Inner
+        let c_r_d_sh = pts[0].clone().translate([0.5 * depth - r_shelf, 0.5 * width]) // Centre of Right Down Shelf
+
+        // Left side
+        let l_d_shelf = [];
+        let l_d_inner = [];
+        let l_u_inner = [];
+        let l_u_shelf = [];
+        // Right side
+        let r_u_shelf = [];
+        let r_u_inner = [];
+        let r_d_inner = [];
+        let r_d_shelf = [];
+
+        for (let i = 0; i <= smooth + 1; i++) {
+            let angle_rot = 0.5 * Math.PI * i / (smooth + 1)
+            l_d_shelf.push(l_d_dt.clone().rotateZByRad(-angle_rot, c_l_d_sh));
+            l_d_inner.push(c_l_d_in.clone().translate([0, r_inner]).rotateZByRad(angle_rot, c_l_d_in));
+            l_u_inner.push(c_l_u_in.clone().translate([r_inner, 0]).rotateZByRad(angle_rot, c_l_u_in));
+            l_u_shelf.push(c_l_u_sh.clone().translate([0, r_shelf]).rotateZByRad(-angle_rot, c_l_u_sh));
+
+            r_u_shelf.push(r_u_dt.clone().rotateZByRad(-angle_rot, c_r_u_sh));
+            r_u_inner.push(c_r_u_in.clone().translate([0, -r_inner]).rotateZByRad(angle_rot, c_r_u_in));
+            r_d_inner.push(c_r_d_in.clone().translate([-r_inner, 0]).rotateZByRad(angle_rot, c_r_d_in));
+            r_d_shelf.push(c_r_d_sh.clone().translate([0, -r_shelf]).rotateZByRad(-angle_rot, c_r_d_sh));
+        }
+
+        let corners = [...l_d_shelf, ...l_d_inner, ...l_u_inner, ...l_u_shelf, ...r_u_shelf, ...r_u_inner, ...r_d_inner, ...r_d_shelf];
+
+        /// поворот всех точек
+        let unit_angle = matan.sgt2().initByPts(pts[0], pts[1]).getAbsoluteAngleRad();
+        let len = corners.length;
+        for (let k = 0; k < len; k++) {
+            let pt = corners[k];
+            pt.rotateZByRad(-unit_angle + 0.5 * Math.PI, pts[0]);
+        }
+        return corners;
+    }
+    return variables
+}
+
+calcExtraFrontPlanes(bot, pts, hatch, corners, b_n, baz){
+    let planes = [];
+    let sides = 0.5 * corners.length;
+    for (let i = 0; i < 0.5 * sides; i++) {
+        let pts1 = [corners[i], corners[i + 1], corners[sides - 2 - i], corners[sides - 1 - i]];
+        let pts2 = [corners[i + sides], corners[i + 1 + sides], corners[sides - 2 - i + sides], corners[sides - 1 - i + sides]];
+        planes.push(matan.pln4().initByPts(pts1).setNBT(b_n[b_n.length - 2], baz[b_n.length - 2], hatch[4]));  /// down
+        planes.push(matan.pln4().initByPts(pts2).setNBT(b_n[b_n.length - 1], baz[b_n.length - 1], hatch[5]));   /// up
+    }
+    return planes;
+}
+
+
+calcEditPoints(){
+    let pts = this.vari('crosssection_pts')
+    let centre = matan.v2([this.confi('pts')[0][0], this.confi('pts')[0][2]]);
+    let angle_pt = matan.sgt2().initByPts(pts[0], pts[pts.length - 1]).calcMidPt();
+    let pt2 = matan.v2([this.confi('pts')[2][0], this.confi('pts')[2][2]]);
+
+    //matan.v2([this.confi('pts')[1][0], this.confi('pts')[1][2]]);
+    return [
+        { pt: centre, type: 'simple' },
+        { pt: pt2, type: 'triangle' },
+        { pt: angle_pt, type: 'triangle' },
+    ]
+}
