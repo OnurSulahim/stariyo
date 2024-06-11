@@ -1,0 +1,150 @@
+xyz_register_name = 'path'
+unit_name = 'circle_by_diametr'
+config = {
+    pts: [[0, 0], [0, 0]],
+    smoothness: 50,
+    stroke_color: [0.8, 1, 0, 1],
+    stroke_width: 2,
+    stroke_style: 0,// solid, dash, dot, dash_dot
+    fill_color: [150, 100, 10, 1],
+    hatch: 0
+}
+
+variables = {
+    circle_pts(self) {
+        let pts = self.confi('pts');
+        let centre = matan.sgt2().initByPts(pts[0], pts[1]).calcMidPt();
+        return [centre, pts[1]]
+    }
+}
+
+onCreateStart(event){
+    this.setConfig({})
+}
+
+
+onCreateClick(event){
+    if (event.click === 2) {
+        return this.finishCreate();
+    }
+}
+
+onCreateMove(event){
+    let pt = event.pt;
+    let cl = event.click;
+    this.config.pts[cl] = pt;
+    if (cl === 0) {
+        this.config.pts[1] = [pt[0] + 50, pt[1]];
+    }
+    this.config.update('pts')
+    this.applyChanges()
+}
+
+setChildren(){
+    return [
+        // Использование юнита окружности по цетру и радиусу
+        {
+            f_c: require('@class/153@'),
+            variables: {
+                quantity(self) {
+                    return 1
+                }
+            },
+            variables_number: {
+                pts(self, number) {
+                    return self.vari('circle_pts');
+                }
+            },
+            getConfig(self) {
+                return {
+                    sides: self.link('smoothness'),
+                    stroke_color: self.link('stroke_color'),
+                    stroke_width: self.link('stroke_width'),
+                    stroke_style: self.link('stroke_style'),
+                    fill_color: self.link('fill_color'),
+                    hatch: self.link('hatch'),
+                }
+            }
+        },
+    ]
+}
+
+drawPlan(){
+    return this.setChildren();
+}
+
+updateRegisterFigures(){
+
+    let centre = q_mc('#183#', this.confi('pts'))
+    let r = q_mc('#79#', centre, this.confi('pts')[0]);
+    let angles = [];
+    angles[0] = q_mc('#395#', centre, this.confi('pts')[0]); // start angle
+    angles[1] = q_mc('#395#', centre, this.confi('pts')[1]); // finish angle
+    let arc = q_mc('#223#', centre, r, angles);
+    let arc2 = q_mc('#223#', centre, r, [angles[1], angles[0]]);
+
+    let data = {
+        axis: {
+            pts: this.config.pts,
+            arcs: [arc, arc2],
+        },
+    }
+    this.setFiguresToSetList(data);
+}
+
+calcEditPoints(){
+    let centre = q_mc('#183#', this.confi('pts'))
+    return [
+        { pt: centre, type: 'simple' },
+        { pt: this.config.pts[1], type: 'triangle' }
+    ]
+}
+
+dragEditPointFigure(ev_data, pt_number){
+    let cursor_pt = ev_data.pt;
+    let centre = q_mc('#183#', this.confi('pts'))
+    let dx = cursor_pt[0] - centre[0];
+    let dy = cursor_pt[1] - centre[1];
+    if (pt_number === 0) {
+        this.config.pts[0] = [this.config.pts[0][0] + dx, this.config.pts[0][1] + dy];
+        this.config.pts[1] = [this.config.pts[1][0] + dx, this.config.pts[1][1] + dy];
+    } else if (pt_number === 1) {
+        this.config.pts[0] = [centre[0] - dx, centre[1] - dy];
+        this.config.pts[pt_number] = cursor_pt;
+    }
+    this.config.update('pts')
+    this.applyChanges()
+}
+
+getComponentLocalName(name){
+    let names = {
+        text_background_color: 'fill_color',
+        stroke_weight: 'stroke_width'
+    }
+
+    if (names[name]) {
+        name = names[name]
+    }
+    return name
+
+}
+
+getComponentValue(name){
+    name = this.getComponentLocalName(name)
+    if (name === 'stroke_color' || name === 'fill_color') {
+        return this.config[name].join(',');
+    }
+    return super.getComponentValue(name)
+}
+
+setComponentValue(name, value) {
+    name = this.getComponentLocalName(name)
+    if (name === 'stroke_color' || name === 'fill_color') {
+        value = value.slice(4, -1).split(",").map(function (clr) { return parseInt(clr, 10); })
+    }
+
+    if (name === 'stroke_width' || name === 'hatch' || name === 'smoothness' || name === 'stroke_style') {
+        value = +value
+    }
+    super.setComponentValue(name, value)
+}
