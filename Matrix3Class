@@ -1,0 +1,238 @@
+() => {
+  return q_mc('#269#', 'Matrix3', function () {
+    var Matrix3 = function (opt_src) {
+      var i, s, d;
+
+      if (opt_src && typeof opt_src === 'object' && opt_src.hasOwnProperty('elements')) {
+
+        s = opt_src.elements;
+        d = new Float32Array(9);
+        for (i = 0; i < 9; ++i) {
+          d[i] = s[i];
+        }
+
+        this.elements = d;
+
+      } else {
+
+        this.elements = new Float32Array([1, 0, 0, 0, 1, 0, 0, 0, 1]);
+
+      }
+    };
+
+    Matrix3.prototype.setIdentity = function () {
+      var e = this.elements;
+      e[0] = 1; e[3] = 0; e[6] = 0;
+      e[1] = 0; e[4] = 1; e[7] = 0;
+      e[2] = 0; e[5] = 0; e[8] = 1;
+      return this;
+    };
+
+    Matrix3.prototype.set = function (src) {
+      var i, s, d;
+
+      s = src.elements;
+      d = this.elements;
+
+      if (s === d) {
+        return;
+      }
+
+      for (i = 0; i < 9; ++i) {
+        d[i] = s[i];
+      }
+
+      return this;
+    };
+
+    Matrix3.prototype.concat = function (other) { // вроде бы умножение матриц
+      var i, e, a, b, ai0, ai1, ai2, ai3;
+
+      // Calculate e = a * b
+      e = this.elements;
+      a = this.elements;
+      b = other.elements;
+
+      // If e equals b, copy b to temporary matrix.
+      // if (e === b) {
+      //   b = new Float32Array(9);
+      //   for (i = 0; i < 9; ++i) {
+      //     b[i] = e[i];
+      //   }
+      // }
+
+      for (i = 0; i < 3; i++) {
+        ai0 = a[i]; ai1 = a[i + 3]; ai2 = a[i + 6];
+        console.log(ai0, ai1, ai2, 'ai', i);
+        e[i] = ai0 * b[0] + ai1 * b[1] + ai2 * b[2];
+        console.log(b[0], b[1], b[2], 'bbb');
+        console.log(e[i], ai0 * b[0], ai1 * b[1], ai2 * b[2], i, 'ei')
+        e[i + 3] = ai0 * b[3] + ai1 * b[4] + ai2 * b[5];
+
+        e[i + 6] = ai0 * b[6] + ai1 * b[7] + ai2 * b[8];
+
+      }
+
+      return this;
+    };
+
+    Matrix3.prototype.multiply = Matrix3.prototype.concat;
+
+    Matrix3.prototype.multiplyVector3 = function (p) {
+      let e = this.elements;
+      let result = [];
+
+      result[0] = p[0] * e[0] + p[1] * e[3] + p[2] * e[6];
+      result[1] = p[0] * e[1] + p[1] * e[4] + p[2] * e[7];
+      result[2] = p[0] * e[2] + p[1] * e[5] + p[2] * e[8];
+
+      return result;
+    };
+
+    Matrix3.prototype.transpose = function () {
+      var e, t;
+
+      e = this.elements;
+
+      t = e[1]; e[1] = e[3]; e[3] = t;
+      t = e[2]; e[2] = e[6]; e[6] = t;
+      t = e[5]; e[5] = e[7]; e[7] = t;
+
+      return this;
+    };
+
+    Matrix3.prototype.setInverseOf = function (other) {
+      var i, s, d, inv, det;
+
+      s = other.elements;
+      d = this.elements;
+
+      inv = [];
+
+      inv[0] = s[4] * s[8] - s[5] * s[7];
+      inv[1] = -s[1] * s[8] + s[2] * s[7];
+      inv[2] = s[1] * s[5] - s[2] * s[4];
+
+      inv[3] = -s[3] * s[8] + s[5] * s[6];
+      inv[4] = s[0] * s[8] - s[2] * s[6];
+      inv[5] = -s[0] * s[5] + s[2] * s[3];
+
+      inv[6] = s[3] * s[7] - s[6] * s[4];
+      inv[7] = -s[0] * s[7] + s[1] * s[6];
+      inv[8] = s[0] * s[4] - s[1] * s[3];
+
+
+
+
+      det = s[0] * inv[0] + s[3] * inv[1] + s[6] * inv[2];
+
+
+      if (det === 0) {
+        return this;
+      }
+
+      for (i = 0; i < 9; i++) {
+        d[i] = inv[i] / det;
+      }
+
+
+
+
+      return this;
+    };
+
+
+    Matrix3.prototype.getInverse = function (matrix) {
+
+      var me = matrix.elements,
+        te = this.elements,
+
+        n11 = me[0], n21 = me[1], n31 = me[2],
+        n12 = me[3], n22 = me[4], n32 = me[5],
+        n13 = me[6], n23 = me[7], n33 = me[8],
+
+        t11 = n33 * n22 - n32 * n23,
+        t12 = n32 * n13 - n33 * n12,
+        t13 = n23 * n12 - n22 * n13,
+
+        det = n11 * t11 + n21 * t12 + n31 * t13;
+
+      if (det === 0) {
+
+        var msg = "THREE.Matrix3: .getInverse() can't invert matrix, determinant is 0";
+
+        console.warn(msg);
+
+        return this.identity();
+
+      }
+
+      var detInv = 1 / det;
+
+      te[0] = t11 * detInv;
+      te[1] = (n31 * n23 - n33 * n21) * detInv;
+      te[2] = (n32 * n21 - n31 * n22) * detInv;
+
+      te[3] = t12 * detInv;
+      te[4] = (n33 * n11 - n31 * n13) * detInv;
+      te[5] = (n31 * n12 - n32 * n11) * detInv;
+
+      te[6] = t13 * detInv;
+      te[7] = (n21 * n13 - n23 * n11) * detInv;
+      te[8] = (n22 * n11 - n21 * n12) * detInv;
+
+      return this;
+
+    }
+	Matrix3.prototype.transpose = function () {
+
+		var tmp, m = this.elements;
+
+		tmp = m[ 1 ]; m[ 1 ] = m[ 3 ]; m[ 3 ] = tmp;
+		tmp = m[ 2 ]; m[ 2 ] = m[ 6 ]; m[ 6 ] = tmp;
+		tmp = m[ 5 ]; m[ 5 ] = m[ 7 ]; m[ 7 ] = tmp;
+
+		return this;
+
+	}
+
+    //   Matrix3.prototype.translate = function (x, y, z) {
+    //   var e = this.elements;
+    //   e[12] += e[0] * x + e[4] * y + e[8] * z;
+    //   e[13] += e[1] * x + e[5] * y + e[9] * z;
+    //   e[14] += e[2] * x + e[6] * y + e[10] * z;
+    //   e[15] += e[3] * x + e[7] * y + e[11] * z;
+    //   return this;
+    // };
+
+
+    Matrix3.prototype.invert = function () {
+      return this.setInverseOf(this);
+    };
+
+    Matrix3.prototype.normalize = function (width, height,canvas) {
+      let el = this.elements;
+      let sc_y = -2 / height;
+      let sc_x = 2 / width;
+      //Применение локального смещения и масштабирования скетча:
+      el[0] = sc_x;
+      el[4] = sc_y;
+      el[6] = el[6] * sc_x - 1;
+      el[7] = -el[7] * sc_y + 1;
+    }
+
+     Matrix3.prototype.normalize_test = function (width,height) {
+      let el = this.elements;
+      let sc_y = 2 / height;
+      let sc_x = 2 / width;
+      //Применение локального смещения и масштабирования скетча:
+      el[0] = sc_x;
+      el[4] = sc_y;
+      el[6] =  - 1;
+      el[7] = -1;
+    }
+
+    return Matrix3;
+
+  });
+}
