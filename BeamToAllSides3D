@@ -1,0 +1,455 @@
+xyz_register_fokus_system = 'simple_house'
+xyz_register_name = 'beam'
+
+unit_name = 'steel_strip'
+
+/* 
+            ГОСТ 103-76
+Полоса стальная горячекатаная. Сортамент 
+*/
+
+config = {
+    pts: [[0, 0, 0], [300, 0, 0]],
+    width: 500,   // b - ширина полосы (от 11 до 200 мм)
+    thick: 200,    // a - толщина полосы (от 4 до 60 мм)
+    axis_length: '',
+    bottom: 0,
+    heigth: 3000,
+    hatch: [1, 2, 5, 5, 21, 21],
+    hatch_name: 'metal',
+}
+
+isTypeGlobal(){
+    return true
+}
+
+onCreateStart(event){
+    this.setConfig({})
+}
+
+corners_v3 = [];
+
+variables = {
+    crosssection_pts(self) {
+        let config_pts = self.confi('pts');
+
+        let width = self.confi('width');
+        let thick = self.confi('thick');
+
+        let pts = [
+            matan.v2([config_pts[0][0], config_pts[0][2]]),
+            matan.v2([config_pts[1][0], config_pts[1][2]])
+        ]
+
+        let corners = [];
+        corners.push(pts[0].clone().translate([-0.5 * width, 0.5 * thick]));
+        corners.push(pts[0].clone().translate([-0.5 * width, -0.5 * thick]));
+        corners.push(pts[0].clone().translate([0.5 * width, -0.5 * thick]));
+        corners.push(pts[0].clone().translate([0.5 * width, 0.5 * thick]));
+        return corners;
+    }
+}
+
+onCreateClick(event){
+    if (event.click === 2) {
+        return this.finishCreate();
+    }
+}
+
+onCreateMove(event){
+    let pt = event.pt;
+    let cl = event.click;
+    let sk_c = event.sketch.sketch_item.config;
+    if (cl === 0) {
+        this.config.pts[0] = [pt[0], +sk_c.model_z, pt[1]];
+        this.config.pts[1] = [pt[0] - 200, +sk_c.model_z + this.config.heigth, pt[1] + 100];
+        // this.config.bottom = 0 ///Math.sqrt(pt[0] * pt[0] + pt[1] * pt[1] + +sk_c.model_z * +sk_c.model_z)
+        this.config.length = 100
+    } else {
+        this.config.pts[1] = [pt[0], +sk_c.model_z + this.config.heigth, pt[1]];
+    }
+    // console.log(this.config, "Konfig")
+    this.config.update('pts');
+    this.applyChanges();
+}
+
+
+drawPlan(){
+    return [
+        {
+            f_c: require('@class/149@'),
+
+            variables: {
+                quantity(self) {
+                    return 1
+                }
+            },
+
+            variables_number: {
+                pts(self, number) {
+                    // let corners_v3 = self.unit.corners_v3;
+                    // console.log({corners_v3}, "Prishlo chto-to ili net_")  ////self.unit.vari('block_3D_data').pts;
+                    // let corners = [];
+                    // for (let i = 0; i < 0.5 * corners_v3.length; i++) {
+                    //     corners.push(matan.v2([corners_v3[i][0],corners_v3[i][2]]));
+                    // }
+                    // console.log({ corners_v3, corners }, "2D tochki poluchil")
+                    let corners = self.vari('crosssection_pts');
+                    let pts = [...corners, corners[0]];
+                    return pts
+                },
+            },
+
+            getConfig(self) {
+                return {
+                    stroke_width: 0.2,
+                    stroke_color: [1, 1, 250, 1],
+                }
+            }
+        },
+    ]
+}
+
+
+draw3D(){
+    return [
+        {
+            f_c: require('@class/173@'),
+            variables: {
+                base_normals(self) {
+                    let corners = self.vari('crosssection_pts');
+                    let normals = [];
+                    normals[0] = matan.v3([-1, 0, 0]);   /// left
+                    normals[1] = matan.v3([1, 0, 0]);    /// right
+                    normals[2] = matan.v3([0, 0, -1]);   /// back
+                    normals[3] = matan.v3([0, 0, 1]);    /// front
+                    normals[4] = matan.v3([0, -1, 0]);   /// bottom
+                    normals[5] = matan.v3([0, 1, 0]);    /// top
+                    return normals
+                },
+
+                block_3D_data(self) {
+                    let bottom = +self.confi('bottom');
+                    let config_pts = self.confi('pts');
+                    let b_n = self.vari('base_normals');
+                    let pts = [];
+                    let normals = [];
+                    let bazises = [];
+
+                    let corners = self.vari('crosssection_pts');
+                    let l = corners.length
+                    let axis = matan.v3().initByTwoPts(config_pts[0], config_pts[1]);
+                    let cosToXZ = axis.getCosToXZ();
+                    let sinToXZ = axis.getSinToXZ();
+                    let sinRotY = axis.getSinRotY();
+                    let cosRotY = axis.getCosRotY();
+                    // let sinRotZ = axis.getSinRotZ();
+                    // let cosRotZ = axis.getCosRotZ();
+                    let center = self.confi('pts')[0] ///matan.v3([0, 0, 0]);
+
+                    let axis_length = matan.v3().initByTwoPts(config_pts[0], config_pts[1]).getLength();
+                    for (let i = 0; i < l; i++) {
+                        pts[i] = matan.v3([corners[i][0], bottom, corners[i][1]]).rotateXBySinCos(cosToXZ, sinToXZ, center).rotateYBySinCos(cosRotY, sinRotY, center);
+                        pts[i + l] = matan.v3([corners[i][0], bottom + axis_length, corners[i][1]]).rotateXBySinCos(cosToXZ, sinToXZ, center).rotateYBySinCos(cosRotY, sinRotY, center);
+                    }
+
+                    normals[0] = matan.v3().initByTwoPts(pts[2], pts[1]).normalize();
+                    normals[1] = matan.v3().initByTwoPts(pts[0], pts[3]).normalize();
+                    normals[2] = matan.v3().initByTwoPts(pts[2], pts[3]).normalize();
+                    normals[3] = matan.v3().initByTwoPts(pts[0], pts[1]).normalize();
+                    normals[4] = matan.v3().initByTwoPts(pts[5], pts[1]).normalize();
+                    normals[5] = matan.v3().initByTwoPts(pts[2], pts[6]).normalize();
+                    // for (let j = 0; j < b_n.length; j++) {
+                    //     normals[j] = b_n[j].clone().rotateXBySinCos(cosToXZ, sinToXZ, [0, 0, 0]).rotateYBySinCos(cosRotY, sinRotY, [0, 0, 0]).normalize();
+                    // }
+
+                    bazises[0] = [...normals[3], ...normals[5], ...normals[0]];
+                    bazises[1] = [...normals[2], ...normals[5], ...normals[1]];
+                    bazises[2] = [...normals[0], ...normals[5], ...normals[2]];
+                    bazises[3] = [...normals[1], ...normals[5], ...normals[3]];
+                    bazises[4] = [...normals[1], ...normals[3], ...normals[4]];
+                    bazises[5] = [...normals[3], ...normals[1], ...normals[5]];
+                    // console.log({ config_pts, corners, pts }, "Tochki 3d")
+
+                    // self.unit.corners_v3 = pts;
+                    // console.log(self.unit.corners_v3, "Zapis poshla")
+                    return {
+                        pts: pts,
+                        normals: normals,
+                        bazises: bazises
+                    }
+                },
+
+
+                // normal_from_3d(self) {
+                //     let corners = self.vari('block_3D_data').pts;
+                //     let normali = [];
+                //     normali[0] = matan.v3().initByTwoPts(corners[0], corners[1]).calcNormalByV3(matan.v3().initByTwoPts(corners[0], corners[4])).normalize()
+                //     normali[1] = matan.v3().initByTwoPts(corners[2], corners[3]).calcNormalByV3(matan.v3().initByTwoPts(corners[2], corners[6])).normalize()
+                //     normali[2] = matan.v3().initByTwoPts(corners[3], corners[0]).calcNormalByV3(matan.v3().initByTwoPts(corners[3], corners[7])).normalize()
+                //     normali[3] = matan.v3().initByTwoPts(corners[1], corners[2]).calcNormalByV3(matan.v3().initByTwoPts(corners[1], corners[5])).normalize()
+                //     normali[4] = matan.v3().initByTwoPts(corners[0], corners[1]).calcNormalByV3(matan.v3().initByTwoPts(corners[0], corners[3])).normalize()
+                //     normali[5] = matan.v3().initByTwoPts(corners[6], corners[7]).calcNormalByV3(matan.v3().initByTwoPts(corners[6], corners[5])).normalize()
+                //     console.log({ corners, normali }, "Normali po novomu")
+                //     return normali
+                // },
+
+
+                // bazis_base(self) {
+                //     let b_n = self.vari('normal_from_3d');
+                //     let baz_result = [];
+                //     baz_result[0] = [...b_n[3], ...b_n[5], ...b_n[0]];
+                //     baz_result[1] = [...b_n[2], ...b_n[5], ...b_n[1]];
+                //     baz_result[2] = [...b_n[0], ...b_n[5], ...b_n[2]];
+                //     baz_result[3] = [...b_n[1], ...b_n[5], ...b_n[3]];
+                //     baz_result[4] = [...b_n[1], ...b_n[3], ...b_n[4]];
+                //     baz_result[5] = [...b_n[3], ...b_n[1], ...b_n[5]];
+                // //     let Matrix3Class = q_mc('#369#');
+                // //     let b_n = self.vari('block_3D_data').normals;
+                // //     // let b_n = self.vari('normal_from_3d');
+                // //     // let b_n = self.vari('base_normals');
+
+                // //     let baz_result = [];
+                // //     let sides = b_n.length - 2;
+                // //     for (let i = 0; i < sides; i++) {
+
+                // //         let mt_data = {
+                // //             elements: [...b_n[(i + 1) % sides], ...b_n[b_n.length - 1], ...b_n[i]]
+                // //         }
+
+                // //         let mt = new Matrix3Class(mt_data);
+                // //         mt = mt.invert();
+                // //         baz_result[i] = mt.elements;
+                // //     }
+                // //     baz_result[b_n.length - 2] = new Float32Array([1, 0, 0, 0, 0, 1, 0, 1, 0]);
+                // //     baz_result[b_n.length - 1] = new Float32Array([1, 0, 0, 0, 0, 1, 0, -1, 0]);
+
+                //     return baz_result;
+                // },
+
+                planes(self) {
+                    let wpts = self.vari('crosssection_pts');
+                    let b_n = self.vari('block_3D_data').normals;
+                    let baz = self.vari('block_3D_data').bazises;
+                    // let b_n = self.vari('base_normals');
+                    // let baz = self.vari('bazis_base');
+
+                    let corners = self.vari('block_3D_data').pts;
+                    // let b_n = self.vari('normal_from_3d');
+
+                    let pts = self.confi('pts');
+                    let hatch = self.confi('hatch');
+                    let h = self.confi('axis_length');
+                    let planes = self.unit.calcExtraPlanes(wpts, h, pts, b_n, baz, hatch, corners);
+                    return planes
+                },
+
+
+                quantity(self) {
+                    return self.vari('planes').length
+                },
+
+            },
+            variables_number: {
+                _config(self, number) {
+                    let planes = self.vari('planes');
+                    let plane = planes[number];
+                    let mte = plane.b;
+
+                    let conf = {
+                        position: plane.pts,
+                        normal: plane.n,
+                        vtx: [mte[0], mte[1], mte[2]],
+                        vty: [mte[3], mte[4], mte[5]],
+                        color: [145, 89, 145, 1.0],
+                        hatch: plane.t
+                    }
+                    return conf
+
+                }
+            }
+
+        },
+    ]
+}
+
+
+calcExtraPlanes(wpts, h, pts, b_n, baz, hatch, corners){
+    // console.log({ wpts, w, h, pts, b_n, baz, hatch, corners, b_n, baz }, "Zashlo vnutr")
+    let bottom_y = pts[0][1] + +this.confi('bottom');
+
+    let planes = []
+
+    planes.push(matan.pln4().initByPts([corners[0], corners[1], corners[5], corners[4]]).setNBT(b_n[0], baz[0], hatch[3]));
+    planes.push(matan.pln4().initByPts([corners[2], corners[3], corners[7], corners[6]]).setNBT(b_n[1], baz[1], hatch[3]));
+    planes.push(matan.pln4().initByPts([corners[3], corners[0], corners[4], corners[7]]).setNBT(b_n[2], baz[2], hatch[3]));
+    planes.push(matan.pln4().initByPts([corners[1], corners[2], corners[6], corners[5]]).setNBT(b_n[3], baz[3], hatch[3]));
+
+    let front = this.unit.calcExtraFrontPlanes(wpts, h, pts, b_n, baz, hatch, corners, bottom_y);
+    planes.push(...front);
+
+    /// плоскости осей
+    // let xz = [[0, 0, 0], [3000, 0, 0], [3000, 0, 3000], [0, 0, 3000]];
+    // let yz = [[0, 0, 0], [0, 3000, 0], [0, 3000, 3000], [0, 0, 3000]];
+    // let xy = [[0, 0, 0], [3000, 0, 0], [3000, 3000, 0], [0, 3000, 0]];
+    // planes.push(
+    //     matan.pln4().initByPts(xy).setNBT([0, 0, 1], [1, 0, 0, 0, 1, 0, 0, 0, 1], 10342),
+    //     matan.pln4().initByPts(xz).setNBT([0, 1, 0], [1, 0, 0, 0, 0, 0, 0, 1, 0], [145, 89, 145, 1.0]),
+    //     matan.pln4().initByPts(yz).setNBT([1, 0, 0], [0, 0, 1, 0, 1, 0, 1, 0, 0], 1)
+    // )
+
+    /// верхние оси из точки 4
+    let vec = []
+    for (let i = 0; i < b_n.length; i++) {
+        vec[i] = b_n[i].clone().multiplyNumber(1000);
+    }
+    planes.push(
+        matan.pln4().initByPts([[0, 0, 0], vec[1], [vec[1][0], vec[1][1] + 100, vec[1][2]], [0, 0, 0]]).setNBT([0, 0, 1], [1, 0, 0, 0, 1, 0, 0, 0, 1], 10342),
+        matan.pln4().initByPts([[0, 0, 0], vec[2], [vec[2][0] + 100, vec[2][1], vec[2][2]], [0, 0, 0]]).setNBT([0, 1, 0], [1, 0, 0, 0, 0, 0, 0, 1, 0], 145),
+        matan.pln4().initByPts([[0, 0, 0], vec[5], [vec[5][0], vec[5][1], vec[5][2] + 100], [0, 0, 0]]).setNBT([1, 0, 0], [0, 0, 1, 0, 1, 0, 1, 0, 0], 1)
+    )
+    // console.log({ planes }, "I sho tut ne tak_??")
+    // console.log(vec[2], vec[3], vec[4], "Normali")
+    return planes
+}
+
+calcExtraFrontPlanes(wpts, h, pts, b_n, baz, hatch, corners, bottom_y){
+    let planes = [];
+    planes.push(matan.pln4().initByPts([corners[0], corners[1], corners[2], corners[3]]).setNBT(b_n[4], baz[4], hatch[4]));
+    planes.push(matan.pln4().initByPts([corners[4], corners[7], corners[6], corners[5]]).setNBT(b_n[5], baz[5], hatch[5]));
+    return planes;
+}
+
+updateRegisterFigures(){
+    let pts = this.vari('crosssection_pts')
+    let sgts = q_mc('#216#', pts)
+
+    let data = {
+        axis: {
+            pts: pts,
+            sgts: sgts
+        },
+    }
+
+    this.setFiguresToSetList(data);
+}
+
+
+calcEditPoints(){
+    let pts = this.vari('crosssection_pts')
+    let center = matan.v2([this.confi('pts')[0][0], this.confi('pts')[0][2]]);
+    let angle_pt = matan.v2([this.confi('pts')[1][0], this.confi('pts')[1][2]]);
+    return [
+        { pt: center, type: 'simple' },
+        { pt: angle_pt, type: 'triangle' },
+    ]
+}
+
+
+dragEditPointFigure(ev_data, pt_number){
+    let center = matan.v2([this.confi('pts')[0][0], this.confi('pts')[0][2]]);
+    let cursor_pt = ev_data.pt;
+    if (pt_number === 0) {
+        let dx = cursor_pt[0] - center[0];
+        let dy = cursor_pt[1] - center[1];
+        this.config.pts[0] = [this.config.pts[0][0] + dx, this.config.pts[0][1], this.config.pts[0][2] + dy];
+        this.config.pts[1] = [this.config.pts[1][0] + dx, this.config.pts[1][1], this.config.pts[1][2] + dy];
+    }
+    else if (pt_number === 1) {
+        this.config.pts[pt_number][0] = cursor_pt[0];
+        this.config.pts[pt_number][1] = 3000
+        this.config.pts[pt_number][2] = cursor_pt[1];
+    }
+
+    this.config.update('pts')
+    this.applyChanges();
+}
+
+
+getComponentValue(name){
+    if (name === 'stroke_color') {
+        return this.config[name].toString(16);
+    }
+    return super.getComponentValue(name)
+}
+
+setComponentValue(name, value){
+
+    if (name === 'smooth') {
+        value = +value
+        console.log({ name, value }, "Component")
+    }
+
+    if (name === 'slab_hatch') {
+        let hatchs = {
+            slab_concrete: [100010, 100010, 100010, 100010, 100010, 100010],
+            slab_marble: [100110, 100110, 100110, 100110, 100110, 100110],
+            plywood_type_1: [27, 27, 27, 27, 27, 27],
+            slab_granite: [100210, 100210, 100210, 100210, 100210, 100210],
+            slab_stones: [100310, 100310, 100310, 100310, 100310, 100310],
+            slab_concrete_light: [100410, 100410, 100410, 100410, 100410, 100410],
+        }
+        let cur_hatch;
+        if (hatchs[value] !== undefined) {
+            cur_hatch = hatchs[value]
+        } else {
+            cur_hatch = [100010, 100010, 100010, 100010, 100010, 100010];
+        }
+        super.setComponentValue('hatch', cur_hatch);
+    }
+
+    if (name === 'wood_hatch') {
+        let hatchs = {
+            pine: [20, 20, 20, 20, 21, 21],
+            oak: [22, 22, 22, 22, 23, 23],
+            plywood_type_1: [27, 27, 27, 27, 27, 27],
+            wood_alder_black: [10011, 10011, 10011, 10011, 10012, 10012],
+            wood_scotch_pine: [10341, 10341, 10341, 10341, 10342, 10342],
+        }
+        let cur_hatch;
+        if (hatchs[value] !== undefined) {
+            cur_hatch = hatchs[value]
+        } else {
+            cur_hatch = [10341, 10341, 10341, 10341, 10342, 10342];
+        }
+        this._setComponentValue('hatch', cur_hatch);
+    }
+
+    if (name === 'wall_hatch') {
+        let hatchs = {
+            brick_1: [101010, 101010, 101010, 101010, 101010, 101010],
+            brick_2: [101020, 101020, 101020, 101020, 101020, 101020],
+            brick_3: [101030, 101030, 101030, 101030, 101030, 101030],
+            brick_4: [101040, 101040, 101040, 101040, 101040, 101040],
+            brick_5: [101050, 101050, 101050, 101050, 101050, 101050],
+            brick_6: [5, 100210, 100210, 100210, 100210, 100210],
+        }
+
+        let cur_hatch;
+        if (hatchs[value] !== undefined) {
+            cur_hatch = hatchs[value]
+        } else {
+            cur_hatch = [101010, 101010, 101010, 101010, 101010, 101010];
+        }
+        this._setComponentValue('hatch', cur_hatch);
+    }
+
+    if (name === 'metal') {
+        let hatchs = {
+            metal_1: [103010, 103010, 103010, 103010, 103010, 103010],
+            metal_2: [103020, 103020, 103020, 103020, 103020, 103020],
+            metal_3: [103030, 103030, 103030, 103030, 103030, 103030],
+            metal_4: [103040, 103040, 103040, 103040, 103040, 103040],
+        }
+
+        let cur_hatch;
+        if (hatchs[value] !== undefined) {
+            cur_hatch = hatchs[value]
+        } else {
+            cur_hatch = [103010, 103010, 103010, 103010, 103010, 103010];
+        }
+        this._setComponentValue('hatch', cur_hatch);
+    }
+
+    super.setComponentValue(name, value)
+}
