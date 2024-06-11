@@ -1,0 +1,336 @@
+/**
+ * @param  {MathClass} matan
+ */
+
+(matan) => {
+    return q_mc('#269#', 'Sgt2Class', function () {
+        let x = 0;
+        let y = 1;
+        let x1 = 0;
+        let y1 = 1;
+        let x2 = 2;
+        let y2 = 3;
+        let k = 4;
+        let b = 5;
+        let angle = 6;
+
+        class Sgt2Class extends Float32Array {
+
+            constructor() {
+                super(7)
+            }
+
+            initByPts(pt1, pt2, an = false) {
+                this[x1] = pt1[0];
+                this[y1] = pt1[1];
+                this[x2] = pt2[0];
+                this[y2] = pt2[1];
+                this.getDeltaV2();
+                this.calcKB();
+                this[angle] = 1000000;
+                if (an) {
+                    this.getAbsoluteAngleRad();
+                }
+                return this;
+            }
+
+            initBySgt(sgt) {
+                for (let i = 0; i < 7; i++) {
+                    this[i] = sgt[i];
+                }
+                this.v2 = sgt.v2;
+            }
+
+            clone() {
+                return matan.sgt2().initBySgt(this);
+            }
+
+            calcMidPt() {
+                return matan.v2([this[x1] + this.v2[x] * 0.5, this[y1] + this.v2[y] * 0.5]);
+            }
+            getStX() {
+                return this[x1];
+            }
+            getStY() {
+                return this[y1];
+            }
+            getFnX() {
+                return this[x2];
+            }
+            getFnY() {
+                return this[y2];
+            }
+
+            getStPt() {
+                return matan.v2([this[x1], this[y1]]);
+            }
+
+            getFnPt() {
+                return matan.v2([this[x2], this[y2]]);
+            }
+
+            getPts() {
+                return [this.getStPt(), this.getFnPt()];
+            }
+
+            getLength() {
+                if (this.l === undefined) {
+                    this.l = this.calcLength();
+                }
+                return this.l;
+            }
+
+            calcLength() {
+                return Math.sqrt(this.calcLengthIn2());
+            }
+
+            calcLengthIn2() {
+                return this.v2[x] * this.v2[x] + this.v2[y] * this.v2[y];
+            }
+
+            getLine() {
+                return matan.ln2().initBySgt(this);
+            }
+
+            calcKB() {
+                this[k] = Infinity;
+                this[b] = this[x1];
+                let dx = this.v2[x];
+                let dy = this.v2[y];
+                if (Math.abs(dx) > 0.001) {
+                    this[k] = dy / dx;
+                    this[b] = this[y1] - this[k] * this[x1];
+                    if (Math.abs(this[k]) < 0.00001) {
+                        this[k] = 0;
+                    }
+                }
+                return this;
+            }
+
+            calcDeltaV2() {
+                return matan.v2([this[x2] - this[x1], this[y2] - this[y1]]);
+            }
+
+            getDeltaV2() {
+                this.v2 = this.calcDeltaV2();
+                return this.v2;
+            }
+
+
+            getPerpendicularLineByPt(pt) {
+                return matan.ln2().initBySgt(this).rotate90ByPt(pt);
+            }
+
+            calcLPerpV2Delta(distance) {//Ось z смотрит вверх...
+                let v3 = matan.v3().initByTwoPts([this[x1], this[y1], 0], [this[x2], this[y2], 0]);
+                return matan.v2().calcCrossByV3AndZ(v3, -1).scaleByLength(distance);
+            }
+
+            calcLMidPtByDist(distance) {
+                let v_transform = this.calcLPerpV2Delta(distance);
+                return this.calcMidPt().translate(v_transform);
+            }
+            calcRMidPtByDist(distance) {
+                let v_transform = this.calcLPerpV2Delta(distance);
+                return this.calcMidPt().translateOpposite(v_transform);
+            }
+            calcLRMidPtByDist(distance) {
+                let v_transform = this.calcLPerpV2Delta(distance);
+                let mid_pt = this.calcMidPt();
+                return [mid_pt.clone().translate(v_transform), mid_pt.translateOpposite(v_transform)];
+            }
+
+            calcLParallelLineByDist(distance) {
+                return matan.ln2().initByKB(this[k], this[b]).translateByV2(this.calcLPerpV2Delta(distance));
+            }
+
+            calcRParallelLineByDist(distance) {
+                let v_transform = this.calcLPerpV2Delta(distance);
+                return matan.ln2().initByKB(this[k], this[b]).translateOppositeByV2(v_transform);
+            }
+
+            calcLStPtByDst(distance) {
+                let d_v = this.calcLPerpV2Delta(distance);
+                return this.getStPt().translate(d_v);
+            }
+            calcRStPtByDst(distance) {
+                let d_v = this.calcLPerpV2Delta(distance);
+                return this.getStPt().translateOpposite(d_v);
+            }
+
+            calcLFnPtByDst(distance) {
+                let d_v = this.calcLPerpV2Delta(distance);
+                return this.getFnPt().translate(d_v);
+            }
+
+            calcRFnPtByDst(distance) {
+                let d_v = this.calcLPerpV2Delta(distance);
+                return this.getFnPt().translateOpposite(d_v);
+            }
+
+            calcLSgtByDst(distance) {
+                let d_v = this.calcLPerpV2Delta(distance);
+                return this.clone().translate(d_v);
+            }
+
+            calcRSgtByDst(distance) {
+                let d_v = this.calcLPerpV2Delta(distance);
+                return this.clone().translateOpposite(d_v);
+            }
+
+            calcAllSgtByDst(distance) {
+                let d_v = this.calcLPerpV2Delta(distance);
+
+                let sgt_l = this.clone().translate(d_v);
+                let sgt_r = this.clone().translateOpposite(d_v).rotateZOpposite();
+
+                let sgt_f = matan.sgt2().initByPts(sgt_l.getFnPt(), sgt_r.getStPt(), true);
+                let sgt_b = matan.sgt2().initByPts(sgt_r.getFnPt(), sgt_l.getStPt(), true);
+
+                return [sgt_l, sgt_f, sgt_r, sgt_b];//лево - перед - право - сзади
+            }
+
+            calcAllPtByDst(distance) {
+                let d_v = this.calcLPerpV2Delta(distance);
+
+                return [this.getStPt().translate(d_v), this.getFnPt().translate(d_v), this.getFnPt().translateOpposite(d_v), this.getStPt().translateOpposite(d_v),]
+            }
+
+
+            getParallelLineByPt(pt) {
+                return matan.ln2().initBySgt(this).translateByPt(pt);
+            }
+
+            getParallelSgtByPt(pt) {
+                let delta = this.calcParallelSgtDeltaByPt(pt)
+                return matan.sgt2().translate(delta)
+            }
+
+            translateParallelByPt(pt) {
+                let delta = this.calcParallelSgtDeltaByPt(pt);
+                return this.translate(delta);
+            }
+
+            calcParallelSgtDeltaByPt(pt) {
+
+                let parallel_line = this.getParallelLineByPt(pt);
+                let perpendicularLine = this.getPerpendicularLineByPt([this[x1], this[y1]]);
+                let pt_inter = perpendicularLine.getIntersectionPtByLine(parallel_line);
+                let delta = [pt_inter[x] - this[x1], pt_inter[y] - this[y1]];
+
+                return matan.ln2().initBySgt(this).translateByPt(delta);
+            }
+
+            translate(delta) {
+                this[x1] += delta[x];
+                this[x2] += delta[x];
+                this[y1] += delta[y];
+                this[y2] += delta[y];
+                return this;
+            }
+
+            translateOpposite(delta) {
+                this[x1] -= delta[x];
+                this[x2] -= delta[x];
+                this[y1] -= delta[y];
+                this[y2] -= delta[y];
+                return this;
+            }
+
+            rotateZOpposite() {
+                let pt = this.getStPt();
+                this[x2] = this[x1];
+                this[y2] = this[y1];
+                this[x1] = pt[x];
+                this[y1] = pt[y];
+                let ang = this.getAbsoluteAngleRad;
+                this[angle] = ang + Math.PI;
+                let pi_2 = 2 * Math.PI;
+                if (this[angle] >= pi_2) {
+                    this[angle] -= pi_2;
+                }
+                return this;
+            }
+
+            rotateZBySinCos(sin, cos, center) {
+                let dx1 = this[x1] - center[x];
+                let dy1 = this[y1] - center[y]
+                this[x1] = dx1 * cos + dy1 * sin + center[x];
+                this[y1] = dy1 * cos - dx1 * sin + center[y];
+
+                let dx2 = this[x2] - center[x];
+                let dy2 = this[y2] - center[y]
+                this[x2] = dx2 * cos + dy2 * sin + center[x];
+                this[y2] = dy2 * cos - dx2 * sin + center[y];
+                return this;
+            }
+
+            rotateZByRad(angle_rad, center) {
+                let sin = Math.sin(angle_rad);
+                let cos = Math.cos(angle_rad);
+                this.rotateZBySinCos(sin, cos, center);
+                return this;
+            }
+
+            rotateZByGrad(angle_grad, center) {
+                let angle_rad = matan.getGradToRad(angle_grad);
+                this.rotateZByRad(angle_rad, center);
+                return this;
+            }
+
+            getAbsoluteAngleRad() {
+                if (this[angle] === 1000000) {
+                    this.calcAbsoluteAngleRad();
+                }
+                return this[angle];
+            }
+
+            getAbsoluteAngleGrad() {
+                if (this[angle] === 1000000) {
+                    this.calcAbsoluteAngleRad();
+                }
+
+                return matan.getRadToGrad(this[angle]);
+            }
+
+            calcAbsoluteAngleRad() {
+                let dy = this.v2[y];
+                let dx = this.v2[x];
+                let l = this.getLength();
+                let sin = dy / l;
+                let cos = dx / l;
+                this[angle] = Math.acos(cos);
+
+                if (sin < 0) {
+                    this[angle] = 2 * Math.PI - this[angle];
+                }
+                return this[angle];
+            }
+
+            calcDistToPt(pt) {
+                return matan.v2(pt).calcDistToSgt(this);
+            }
+
+            getPtOnLineSgtByDistFromStPt(distance) {
+                let v_l = this.getLength();
+                let v_a = v_l - distance
+                let v_b = 1 / v_l
+                let vx = v_b * (v_a * this[x1] + distance * this[x2]);
+                let vy = v_b * (v_a * this[y1] + distance * this[y2]);
+                return matan.v2([vx, vy]);
+            }
+
+            getPtOnLineSgtByDistFromFnPt(distance) {
+                let v_l = this.getLength();
+                let v_a = v_l - distance
+                let v_b = 1 / v_l
+                let vx = v_b * (v_a * this[x2] + distance * this[x1]);
+                let vy = v_b * (v_a * this[y2] + distance * this[y1]);
+                return matan.v2([vx, vy]);
+            }
+
+
+        }
+        return Sgt2Class;
+    })
+}
