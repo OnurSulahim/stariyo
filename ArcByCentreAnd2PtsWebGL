@@ -1,0 +1,239 @@
+xyz_register_name = 'path'
+unit_name = 'simple_arc'
+config = {
+    pts: [[0, 0], [0, 0], [0, 0]],
+    smoothness: 50,   // гладкость (по сути количество углов правильного многоугольника)
+    type: 0,  // 0 - arc, 1 - a segment of a circle, 2 - a sector of a circle
+    stroke_color: [0.8, 1, 0, 1],
+    stroke_style: 0,  // solid, dash, dot, dash_dot
+    stroke_width: 2,
+    fill_color: [150, 500, 0, 1],
+    hatch: 0
+}
+
+variables = {
+    arc_pts(self) {
+        let pts = self.confi('pts')
+        let smooth = self.confi('smoothness');
+
+        let pt = pts[0];
+        let sgt = matan.sgt2().initByPts(pt, pts[1]);
+        let r = sgt.getLength();
+        let s_angle = sgt.getAbsoluteAngleRad(); // start angle
+        let f_angle = matan.sgt2().initByPts(pt, pts[2]).getAbsoluteAngleRad(); // finish angle
+
+        let no = 0.5 * smooth / Math.PI;
+        let s_no = no * s_angle
+        let f_no = no * f_angle
+        let alpha = 2 * Math.PI / smooth
+        let arc_pts = [];
+        let i, phi
+        if (s_angle < f_angle) {
+            for (i = s_no; i <= f_no; i++) {
+                phi = i * alpha
+                arc_pts.push([pt[0] + r * Math.cos(phi), pt[1] + r * Math.sin(phi)])
+            }
+        } else if (s_angle >= f_angle) {
+            for (i = s_no; i <= smooth; i++) {
+                phi = i * alpha
+                arc_pts.push([pt[0] + r * Math.cos(phi), pt[1] + r * Math.sin(phi)]);
+            }
+            for (i = 0; i <= f_no; i++) {
+                phi = i * alpha
+                arc_pts.push([pt[0] + r * Math.cos(phi), pt[1] + r * Math.sin(phi)]);
+            }
+        }
+        arc_pts.push(q_mc('#221#', pt, f_angle, r));
+
+        if (self.confi('type') === 2) {
+            arc_pts.push(pt)
+        }
+        return arc_pts
+
+
+        // let rot_angle = Math.PI / (0.5 * smooth);
+        // let st_pt = sgt.getFnPt();
+        // let f_no = 0.5 * smooth * f_angle / Math.PI
+        // let vertices = []
+        // if (s_angle < f_angle) {
+        //     for (let i = 0; i < f_no; i++) {
+        //         vertices.push(matan.v2(st_pt.rotateZByRad(rot_angle, pt)));
+        //     }
+        // } else if (s_angle >= f_angle) {
+        //     for (let i = 0; i < f_no; i++) {
+        //         vertices.push(matan.v2(st_pt.rotateZByRad(-rot_angle, pt)));
+        //     }
+        // }
+        // return vertices
+        
+    },
+    // triangles_data(self) {
+    //     let arc_pts = self.vari('arc_pts');
+    //     let pt = self.confi('pts')[0];
+    //     let i = 0;
+    //     let l = arc_pts.length
+    //     let triangles = [];
+    //     for (i = 0; i < l; i++) {
+    //         triangles[i] = []
+    //         triangles[i][0] = pt;
+    //         triangles[i][1] = arc_pts[i];
+    //         triangles[i][2] = arc_pts[(i + 1) % l]
+    //     }
+    //     return triangles;
+    // }
+}
+
+onCreateStart(event) {
+    this.setConfig({})
+}
+
+
+onCreateClick(event) {
+    if (event.click === 3) {
+        return this.finishCreate();
+    }
+}
+
+onCreateMove(event) {
+    let pt = event.pt;
+    let cl = event.click;
+    this.config.pts[cl] = pt;
+    if (cl === 0) {
+        this.config.pts[1] = [pt[0] + 50, pt[1]];
+    }
+
+    this.config.update('pts')
+    this.applyChanges()
+}
+
+setChildren() {
+    return [
+        { // использование юнита полилинии для соединения точек массива
+            f_c: require('@class/145@'),
+            variables: {
+                quantity(self) {
+                    if (self.confi('smoothness') < 50) return 0
+                    return 1
+                }
+            },
+            variables_number: {
+                pts(self, number) {
+                    return self.vari('arc_pts')
+                }
+            },
+            getConfig(self) {
+                return {
+                    stroke_color: self.link('stroke_color'),
+                    stroke_width: self.link('stroke_width'),
+                    fill_color: self.link('fill_color'),
+                    hatch: self.link('hatch'),
+                    type: self.link('type'),
+                }
+            }
+        },
+        // // закрашиваем
+        // {
+        //     f_c: require('@class/93@'),
+        //     variables: {
+        //         quantity(self) {
+        //             return self.vari('triangles_data').length;
+        //         }
+        //     },
+        //     variables_number: {
+        //         _config(self, number) {
+        //             let triangle_pts = self.vari('triangles_data')[number];
+        //             return {
+        //                 pts: triangle_pts,
+        //             }
+        //         }
+        //     },
+        //     getConfig(self) {
+        //         return {
+        //             stroke_color: self.link('stroke_color'),
+        //             fill_color: self.link('fill_color'),
+        //             hatch: self.link('hatch'),
+        //         }
+        //     }
+        // },
+    ]
+}
+
+drawPlan() {
+    return this.setChildren();
+}
+
+updateRegisterFigures() {
+
+    let config_pts = this.confi('pts');
+    let pts = this.vari('arc_pts');
+    let pt = config_pts[0];
+    let r = q_mc('#79#', config_pts[0], config_pts[1]);
+    let s_angle = q_mc('#395#', pt, config_pts[1]); // start angle
+    let f_angle = q_mc('#395#', pt, config_pts[2]); // finish angle
+    let arc = q_mc('#223#', pt, r, [s_angle, f_angle]);
+    let data = {
+        axis: {
+            pts: pts,
+            arcs: [arc]
+        },
+    }
+    this.setFiguresToSetList(data);
+}
+
+calcEditPoints() {
+    return [
+        { pt: this.config.pts[0], type: 'simple' },
+        { pt: this.config.pts[1], type: 'triangle' },
+        { pt: this.vari('arc_pts')[this.vari('arc_pts').length - 2], type: 'triangle' },
+    ]
+}
+
+dragEditPointFigure(ev_data, pt_number) {
+    let cursor_pt = ev_data.pt;
+    if (pt_number === 0) {
+        let dx = cursor_pt[0] - this.config.pts[0][0];
+        let dy = cursor_pt[1] - this.config.pts[0][1];
+        this.config.pts[pt_number] = cursor_pt;
+        this.config.pts[1] = [this.config.pts[1][0] + dx, this.config.pts[1][1] + dy];
+        this.config.pts[2] = [this.config.pts[2][0] + dx, this.config.pts[2][1] + dy];
+    } else if (pt_number === 1) {
+        this.config.pts[pt_number] = cursor_pt;
+    } else if (pt_number === 2) {
+        this.config.pts[pt_number] = cursor_pt;
+    }
+    this.config.update('pts')
+    this.applyChanges()
+}
+
+getComponentLocalName(name) {
+    let names = {
+        text_background_color: 'fill_color',
+        stroke_weight: 'stroke_width'
+    }
+
+    if (names[name]) {
+        name = names[name]
+    }
+    return name
+
+}
+
+getComponentValue(name) {
+    name = this.getComponentLocalName(name)
+    if (name === 'stroke_color' || name === 'fill_color') {
+        return this.config[name].join(',');
+    }
+    return super.getComponentValue(name)
+}
+
+setComponentValue(name, value) {
+    name = this.getComponentLocalName(name)
+    if (name === 'stroke_color' || name === 'fill_color') {
+        value = value.slice(4, -1).split(",").map(function (clr) { return parseInt(clr, 10); })
+    }
+
+    if (name === 'stroke_width' || name === 'hatch' || name === 'type' || name === 'smoothness') {
+        value = +value
+    }
+    super.setComponentValue(name, value)
+}
