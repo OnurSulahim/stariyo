@@ -1,0 +1,148 @@
+() => {
+    return q_mc('#269#', 'MathClass', function () {
+
+        let MathClass = {};
+
+        MathClass.line2_class = q_mc('#399#', MathClass)
+        MathClass.line3_class = q_mc('#433#', MathClass)
+
+        MathClass.sgt2_class = q_mc('#398#', MathClass)
+        MathClass.sgt3_class = q_mc('#421#', MathClass)
+        MathClass.v2_class = q_mc('#397#', MathClass)
+        MathClass.v3_class = q_mc('#407#', MathClass)
+        MathClass.axis_class = q_mc('#438#', MathClass)
+        MathClass.plane4_class = q_mc('#406#', MathClass)
+        MathClass.plane_class = q_mc('#422#', MathClass)
+        MathClass.mtrx3_class = q_mc('#432#', MathClass)
+
+
+        MathClass.pts_store_class = q_mc('#439#', MathClass);
+        MathClass.sgts_store_class =q_mc('#441#', MathClass);
+
+        MathClass.polygons_mono_class = q_mc('#427#', MathClass)
+        MathClass.polygon_mono_class = q_mc('#429#', MathClass)
+        MathClass.polygon_class = q_mc('#425#', MathClass)
+        MathClass.wall_class = q_mc('#408#', MathClass)
+        MathClass.profile_class = q_mc('#423#', MathClass)
+        MathClass.face_class = q_mc('#430#', MathClass)
+        MathClass.bit_map_element_class = q_mc('#418#', MathClass)
+        MathClass.bit_map_group_class = q_mc('#420#', MathClass)
+        MathClass.bit_map_storage_class = q_mc('#419#', MathClass)
+
+        MathClass.bit_q_1 = []
+        MathClass.bit_q_0 = []
+
+        for (let k = 0; k < 32; k++) {
+            MathClass.bit_q_1.push(Math.pow(2, k) - 1);
+            MathClass.bit_q_0.push(~MathClass.bit_q_1[k]);
+        }
+
+        MathClass.v2 = (pt) => {
+            return new (MathClass.v2_class)(pt);
+        }
+        MathClass.v3 = (pt) => {
+            return new (MathClass.v3_class)(pt);
+        }
+
+        MathClass.pts_store = (data) => {
+            return new (MathClass.pts_store_class)(data);
+        } 
+        
+        MathClass.sgts_store = (data) => {
+            return new (MathClass.sgts_store_class)(data);
+        }
+
+        MathClass.axis = (data) => {
+            return new (MathClass.axis_class)(data);
+        }
+
+        MathClass.ln2 = () => {
+            return new (MathClass.line2_class)();
+        }
+
+        MathClass.ln3 = () => {
+            return new (MathClass.line3_class)();
+        }
+
+        MathClass.sgt2 = () => {
+            return new (MathClass.sgt2_class)();
+        }
+        MathClass.sgt3 = () => {
+            return new (MathClass.sgt3_class)();
+        }
+        MathClass.pln4 = () => {
+            return new (MathClass.plane4_class)();
+        }
+        MathClass.pln = (normal, constant) => {
+            return new (MathClass.plane_class)(normal, constant);
+        }
+        MathClass.mtrx3 = (opt_src) => {
+            return new (MathClass.mtrx3_class)(opt_src);
+        }
+        MathClass.polygons_mono = (all_pts) => {
+            return new (MathClass.polygons_mono_class)(all_pts);
+        }
+        MathClass.polygon_mono = (data) => {
+            return new (MathClass.polygon_mono_class)(data);
+        }
+        MathClass.poly = (all_pts) => {
+            return new (MathClass.polygon_class)(all_pts);
+        }
+
+        MathClass.wall = () => {
+            return new (MathClass.wall_class)();
+        }
+
+        MathClass.profile = (data) => {
+            return new (MathClass.profile_class)(data);
+        }
+
+        MathClass.face = (pl_d, poly_d) => {
+            return new (MathClass.face_class)(pl_d, poly_d);
+        }
+
+        MathClass.bm_element = (buffer, offset, var_q, map_arr, map_obj, group_data, mat_id) => {
+            return new (MathClass.bit_map_element_class)(buffer, offset, var_q, map_arr, map_obj, group_data, mat_id);
+        }
+
+        MathClass.bm_group = (group_data = []) => {
+            return new (MathClass.bit_map_group_class)(group_data);
+        }
+
+        MathClass.bm_storage = (storage_data = []) => {
+            return new (MathClass.bit_map_storage_class)(storage_data);
+        }
+
+        //functions
+
+        MathClass.setDefVal = (val_1, val_2) => {
+            if (val_1 === undefined) {
+                return val_2;
+            }
+            return val_1;
+        }
+
+        MathClass.getSinByCos = (cos) => {
+            return Math.sqrt(1 - cos * cos);
+        }
+
+        MathClass.getCosBySin = (sin) => {
+            return Math.sqrt(1 - sin * sin);
+        }
+
+        MathClass.getGradToRad = (grad) => {
+            return grad * Math.PI / 180;
+        }
+
+        MathClass.getRadToGrad = (rad) => {
+            return rad * 180 / Math.PI;
+        }
+
+
+
+
+        window.matan = MathClass;
+
+        return MathClass;
+    })
+}
