@@ -1,0 +1,78 @@
+function(pts, radius, smooth_quality, inside_th = false, push_pts_arr = false, push_inside_pts_arr = false) {
+
+    let sgt_01 = matan.sgt2().initByPts(pts[1], pts[0]);
+    let sgt_12 = matan.sgt2().initByPts(pts[1], pts[2]);
+
+    let delta_angle = sgt_01.calcAbsolutAngleBySgt(sgt_12);
+    let delta_angle_abs = Math.abs(delta_angle);
+    let angle_sign = Math.sign(delta_angle);
+
+    if (delta_angle_abs >= Math.PI) {
+        return false;
+    }
+
+    let distance = radius / Math.tan(0.5 * delta_angle_abs);
+    let l1 = sgt_01.getLength();
+    let l2 = sgt_12.getLength();
+    let l_min = Math.min(l1, l2);
+    if (distance > l_min) {
+        let old_dist = distance;
+        distance = l_min;
+        radius = (distance / old_dist) * radius;
+    }
+
+    let st_pt = sgt_01.getPtOnLineSgtByDistFromStPt(distance)
+    let line_0 = sgt_01.getPerpendicularLineByPt(st_pt)
+    let fn_pt = sgt_12.getPtOnLineSgtByDistFromStPt(distance)
+    let line_2 = sgt_12.getPerpendicularLineByPt(fn_pt)
+    let center = line_0.getIntersectionPtByLine(line_2)
+
+    let betta = Math.PI - delta_angle_abs;
+    let st_pt_inside, fn_pt_inside;
+    if (inside_th !== false) {
+        inside_th = Math.min(radius, inside_th);
+        let sgt_start = matan.sgt2().initByPts(st_pt, center);
+        let sgt_finish = matan.sgt2().initByPts(fn_pt, center);
+        st_pt_inside = sgt_start.getPtOnLineSgtByDistFromStPt(inside_th);
+        let inside_radius = matan.sgt2().initByPts(center, st_pt_inside).calcLength();
+
+        fn_pt_inside = sgt_finish.getPtOnLineSgtByDistFromStPt(inside_th);
+        radius = Math.max(radius, inside_radius);
+    }
+    
+    let smooth = q_mc('#calcCircleSmoothByR-488#', radius, smooth_quality, betta);//при построении поперечных и продольных сечений надо как-то кешировать количество фрагментов, так как будет вычисляться много раз(шевченко)
+
+    let phi = (-angle_sign * betta) / smooth;
+
+    let arc_pts = [];
+    if (push_pts_arr !== false) {
+        arc_pts = push_pts_arr;
+    }
+
+
+    arc_pts.push(st_pt);
+    let pt;
+    if (inside_th === false) {
+        for (let i = 1; i < smooth; i++) {
+            pt = st_pt.clone().rotateZByRad(i * phi, center);
+            arc_pts.push(pt)
+        }
+    } else {
+
+        push_inside_pts_arr.push(st_pt_inside);
+        let ang = 0;
+        for (let i = 1; i < smooth; i++) {
+            ang = i * phi;
+            pt = st_pt.clone().rotateZByRad(ang, center);
+            arc_pts.push(pt)
+            pt = st_pt_inside.clone().rotateZByRad(ang, center);
+            push_inside_pts_arr.push(pt);
+        }
+        push_inside_pts_arr.push(fn_pt_inside);
+
+    }
+
+    arc_pts.push(fn_pt);
+    return arc_pts
+
+}
