@@ -1,0 +1,369 @@
+/**
+ * @param  {MathClass} matan
+ */
+
+(matan) => {
+    return q_mc('#269#', 'Mtrx3Class', function () {
+
+        class Mtrx3Class {
+
+            constructor(s) {
+                let d = this.elements = new Float32Array(9);
+                if (s === undefined) {
+                    return;
+                }
+
+                for (let i = 0; i < 9; ++i) {
+                    d[i] = s[i];
+                }
+            }
+
+            // set(opt_src) {
+            //     let i, s, d;
+
+            //     if (opt_src && typeof src === 'object' && opt_src.hasOwnProperty('elements')) {
+
+            //         s = opt_src.elements;
+            //         d = new Float32Array(9);
+
+            //         if (s === d) {
+            //             return;
+            //         }
+
+            //         for (i = 0; i < 9; ++i) {
+            //             d[i] = s[i];
+            //         }
+            //         this.elements = d;
+
+            //         return this;
+            //     }
+            // }
+
+            initByElements(m0x, m0y, m0z, m1x, m1y, m1z, m2x, m2y, m2z) {
+                let d = this.elements;
+                d[0] = m0x;
+                d[1] = m0y;
+                d[2] = m0z;
+                d[3] = m1x;
+                d[4] = m1y;
+                d[5] = m1z;
+                d[6] = m2x;
+                d[7] = m2y;
+                d[8] = m2z;
+                return this;
+            }
+
+            // Функция возвращает величину определителя матрицы
+            Det() {
+
+                if (this.det !== undefined) {
+                    return this.det;
+                }
+
+                let me = this.elements,
+                    n11 = me[0], n21 = me[1], n31 = me[2],
+                    n12 = me[3], n22 = me[4], n32 = me[5],
+                    n13 = me[6], n23 = me[7], n33 = me[8],
+
+                    t11 = n33 * n22 - n32 * n23,
+                    t12 = n32 * n13 - n33 * n12,
+                    t13 = n23 * n12 - n22 * n13;
+
+                this.det = n11 * t11 + n21 * t12 + n31 * t13;
+                return this.det;
+            }
+
+
+            // Устанавливает единичную матрицу
+            // другими словами Матрица идентичности
+            identity() {
+
+                this.initByElements(
+                    1, 0, 0,
+                    0, 1, 0,
+                    0, 0, 1
+                );
+
+                return this;
+            }
+
+
+            // Создает клон матрицы this
+            clone() {
+                return matan.mtrx3(this.elements);
+            }
+
+
+            // Создает this как копию матрицы mtrx3
+            copy(mtrx3) {
+
+                let te = this.elements;
+                let me = mtrx3.elements;
+
+                te[0] = me[0]; te[1] = me[1]; te[2] = me[2];
+                te[3] = me[3]; te[4] = me[4]; te[5] = me[5];
+                te[6] = me[6]; te[7] = me[7]; te[8] = me[8];
+
+                return this;
+            }
+
+            // Преобразовывает матрицу this в транспонированную
+            transpose() {
+
+                let e, t;
+
+                e = this.elements;
+
+                t = e[1]; e[1] = e[3]; e[3] = t;
+                t = e[2]; e[2] = e[6]; e[6] = t;
+                t = e[5]; e[5] = e[7]; e[7] = t;
+
+                return this;
+            }
+
+
+            // Устанавливает значения матрицы по столбцам
+            // col1, col2, col3 - 3D-векторы
+            setVectorInColumn(col1, col2, col3) {
+                this.initByElements(col1[0], col1[1], col1[2], col2[0], col2[1], col2[2], col3[0], col3[1], col3[2]);
+                return this;
+            }
+
+
+            // Устанавливает значения матрицы по рядам
+            // vec0, vec1, vec2 - 3D-векторы
+            setVectorInRow(vec0, vec1, vec2) {
+                this.initByElements(vec0[0], vec1[0], vec2[0], vec0[1], vec1[1], vec2[1], vec0[2], vec1[2], vec2[2]);
+                return this;
+            }
+
+
+            // Меняет значения заданного номером столбеца но новые значения 
+            // num - номер столбца под замену, число от 1 до 3
+            // new_col - 3D-вектор
+            changeColumn(num, new_col) {
+                let d = this.elements;
+                let j = num - 1;
+                d[j] = new_col[0];
+                d[j + 3] = new_col[1];
+                d[j + 6] = new_col[2];
+                return this;
+            }
+
+            // Меняет значения заданной номером строкм но новые значения 
+            // num - номер строки под замену, число от 1 до 3
+            // new_row - 3D-вектор
+            changeRow(num, new_row) {
+                let d = this.elements;
+                let j = 3 * (num - 1);
+                d[j] = new_row[0];
+                d[j + 1] = new_row[1];
+                d[j + 2] = new_row[2];
+                return this;
+            }
+
+
+            // Умножает матрицу this на матрицу mtrx3
+            multiply(mtrx3) {
+                return this.multiplyMatrices(this, mtrx3);
+            }
+
+
+            // Умножает матрицу mtrx3 на матрицу this
+            premultiply(mtrx3) {
+                // console.log(this, { mtrx3 }, "Prishlo v PREmult....")   //// Что-то тут не так....Не правильный результат выдает
+                return this.multiplyMatrices(mtrx3, this);
+            }
+
+
+            // Функция перемножения двух матриц. Результат - матрица this
+            multiplyMatrices(mtrx3_1, mtrx3_2){
+
+                let i, ae, be, te, ai0, ai1, ai2;
+
+                ae = mtrx3_1.elements;
+                be = mtrx3_2.elements;
+                te = this.elements;
+                for (i = 0; i < 3; i++) {
+                    ai0 = ae[i]; ai1 = ae[i + 3]; ai2 = ae[i + 6];
+                    te[i] = ai0 * be[0] + ai1 * be[1] + ai2 * be[2];
+                    te[i + 3] = ai0 * be[3] + ai1 * be[4] + ai2 * be[5];
+                    te[i + 6] = ai0 * be[6] + ai1 * be[7] + ai2 * be[8];
+                }
+
+                
+                return this;
+            }
+
+
+            multiplyV3(v3) {
+                let e = this.elements;
+                let result = matan.v3();
+
+                result.setX(e[0] * v3[0] + e[3] * v3[1] + e[6] * v3[2]);
+                result.setY(e[1] * v3[0] + e[4] * v3[1] + e[7] * v3[2]);
+                result.setZ(e[2] * v3[0] + e[5] * v3[1] + e[8] * v3[2]);
+
+                return result;
+            }
+
+
+            /// Алгоритм нахождения обратной матрицы методом алгебраических дополнений
+            getInverse() {
+
+                let te = this.elements,
+                    det = this.Det();
+
+                if (det === 0) {
+                    let msg = "THREE.Matrix3: .getInverse() can't invert matrix, determinant is 0";
+                    console.warn(msg);
+                    return this.identity();
+                }
+
+                let detInv = 1 / det;
+
+                let n11 = te[0], n21 = te[1], n31 = te[2],
+                    n12 = te[3], n22 = te[4], n32 = te[5],
+                    n13 = te[6], n23 = te[7], n33 = te[8]
+
+                te[0] = (n33 * n22 - n32 * n23) * detInv;
+                te[1] = (n31 * n23 - n33 * n21) * detInv;
+                te[2] = (n32 * n21 - n31 * n22) * detInv;
+
+                te[3] = (n32 * n13 - n33 * n12) * detInv;
+                te[4] = (n33 * n11 - n31 * n13) * detInv;
+                te[5] = (n31 * n12 - n32 * n11) * detInv;
+
+                te[6] = (n23 * n12 - n22 * n13) * detInv;
+                te[7] = (n21 * n13 - n23 * n11) * detInv;
+                te[8] = (n22 * n11 - n21 * n12) * detInv;
+
+                return this;
+            }
+
+
+            /// По-другому написанный Алгоритм нахождения обратной матрицы методом алгебраических дополнений
+            setInverseOf(other) {
+                let i, s, d, inv, det;
+
+                s = other.elements;
+                d = this.elements;
+
+                inv = [];
+
+                inv[0] = s[4] * s[8] - s[5] * s[7];
+                inv[1] = -s[1] * s[8] + s[2] * s[7];
+                inv[2] = s[1] * s[5] - s[2] * s[4];
+
+                inv[3] = -s[3] * s[8] + s[5] * s[6];
+                inv[4] = s[0] * s[8] - s[2] * s[6];
+                inv[5] = -s[0] * s[5] + s[2] * s[3];
+
+                inv[6] = s[3] * s[7] - s[6] * s[4];
+                inv[7] = -s[0] * s[7] + s[1] * s[6];
+                inv[8] = s[0] * s[4] - s[1] * s[3];
+
+
+                det = s[0] * inv[0] + s[3] * inv[1] + s[6] * inv[2];
+
+
+                if (det === 0) {
+                    return this;
+                }
+
+                det = 1 / det
+                for (i = 0; i < 9; i++) {
+                    d[i] = inv[i] * det;
+                }
+
+                return this;
+            }
+
+
+            // Функция возвращает инвертированную матрицу this умноженную на вектор vector.
+            // Данная функция используется в CrossThreePlanes.
+            InvertMatrixMultiply(vector) {
+                let vecOut = matan.v3();
+                if (this.Det() == 0.0) {
+                    return null;
+                }
+
+                let matrix = this.getInverse();
+                vecOut = matrix.multiplyV3(vector);
+                return vecOut;
+            }
+
+            // Использования метода Крамера для решения матрицы this с результирующим вектором res_v3
+            getSolveWithV3ByKramer(res_v3) {
+                let det = this.Det();
+
+                let mat_x = this.clone().changeColumn(1, res_v3);
+                let det_x = mat_x.Det();
+                let mat_y = this.clone().changeColumn(2, res_v3);
+                let det_y = mat_y.Det();
+                let mat_z = this.clone().changeColumn(3, res_v3);
+                let det_z = mat_z.Det();
+
+                if (det === 0 || det === null) {
+                    if (det_x === det_y === det_z === 0) {
+                        return this.identity();
+                    }
+                    return this.identity();
+                }
+
+                det = 1 / det
+                let x = det_x * det
+                let y = det_y * det
+                let z = det_z * det
+
+                return matan.v3().setXYZ(x, y, z)
+            }
+
+            //   translate(x, y, z) {
+            //   var e = this.elements;
+            //   e[12] += e[0] * x + e[4] * y + e[8] * z;
+            //   e[13] += e[1] * x + e[5] * y + e[9] * z;
+            //   e[14] += e[2] * x + e[6] * y + e[10] * z;
+            //   e[15] += e[3] * x + e[7] * y + e[11] * z;
+            //   return this;
+            // }
+
+            // Возвращает матрицу this умноженную на mtrx3
+            concat(mtrx3) {
+                let i, e, a, b, ai0, ai1, ai2, ai3;
+
+                // Calculate e = a * b
+                e = this.elements;
+                a = this.elements;
+                b = mtrx3.elements;
+
+                // If e equals b, copy b to temporary matrix.
+                // if (e === b) {
+                //   b = new Float32Array(9);
+                //   for (i = 0; i < 9; ++i) {
+                //     b[i] = e[i];
+                //   }
+                // }
+
+                for (i = 0; i < 3; i++) {
+                    ai0 = a[i]; ai1 = a[i + 3]; ai2 = a[i + 6];
+                    console.log(ai0, ai1, ai2, 'ai', i);
+                    e[i] = ai0 * b[0] + ai1 * b[1] + ai2 * b[2];
+                    console.log(b[0], b[1], b[2], 'bbb');
+                    console.log(e[i], ai0 * b[0], ai1 * b[1], ai2 * b[2], i, 'ei')
+                    e[i + 3] = ai0 * b[3] + ai1 * b[4] + ai2 * b[5];
+                    e[i + 6] = ai0 * b[6] + ai1 * b[7] + ai2 * b[8];
+                }
+                return this;
+            }
+
+
+
+
+
+
+        }
+
+        return Mtrx3Class
+    })
+}
